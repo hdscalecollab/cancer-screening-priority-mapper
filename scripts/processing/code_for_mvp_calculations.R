@@ -174,11 +174,6 @@ df_calcs <- df_calcs |>
                                 unname(ak_recode[FIPS]),
                                 FIPS))
 
-# Check: should now return 0 rows
-df_calcs |> distinct(burden_FIPS, state) |>
-  anti_join(county_burden, by = c("burden_FIPS" = "FIPS"))
-
-
 write_csv(df_calcs, file.path(out_dir, "df_w_calcs.csv"))
 
 # ---- County burden (one row per county) -------------------------------------
@@ -204,9 +199,13 @@ county_burden <- county_raw |>
   mutate(across(all_of(names(burden_cols)), pctl,    .names = "pctl_{.col}"),
          across(all_of(names(burden_cols)), tertile, .names = "burden_{.col}"))
 
+# Check: should now return 0 rows
+df_calcs |> distinct(burden_FIPS, state) |>
+  anti_join(county_burden, by = c("burden_FIPS" = "FIPS"))
+
 stopifnot("County burden must be one row per county" = !anyDuplicated(county_burden$FIPS))
 
-nrow(county_burden)                                                          # ~3,143
+nrow(county_burden)                                                          # ~3,144
 county_burden |> summarise(across(all_of(names(burden_cols)), ~ sum(is.na(.x))))  # suppressed per measure
 
 # Tract counties with no row in the county file (check Connecticut planning

@@ -1,0 +1,34 @@
+[1/4] Reading MVP outputs from data\MVP_data
+  df_w_calcs.csv            84,400 rows, 19 columns used
+  df_percentiles.csv        84,400 rows, 8 columns used
+  df_rank.csv               84,400 rows, 8 columns used
+  df_classification.csv     84,400 rows, 11 columns used
+  [ok] labels: all df_rank tertile values are low / moderate / high
+  Tertile consistency checks
+  [ok] score sum: tertiles add up to 'barriers' for all 83,298 tracts
+  [ok] score NA: barriers is NA exactly when a tertile is NA (1,102 tracts)
+  [ok] ordering: pct_uninsured_f35_74_t: T1: 0.0-33.3 (n=27,773); T2: 33.3-66.7 (n=27,781); T3: 66.7-100.0 (n=27,773)
+  [ok] ordering: pct_no_vehicle_hh_t: T1: 0.0-33.3 (n=27,785); T2: 33.3-66.7 (n=27,796); T3: 66.7-100.0 (n=27,783)
+  [ok] ordering: pct_no_hs_f25_t: T1: 0.0-33.3 (n=27,825); T2: 33.3-66.7 (n=27,830); T3: 66.7-100.0 (n=27,824)
+  [ok] ordering: pct_lep_hh_t: T1: 0.0-33.3 (n=27,786); T2: 33.3-66.7 (n=27,794); T3: 66.7-100.0 (n=27,784)
+  [ok] cross-file: access matches between df_rank and df_classification (84,105 tracts)
+  [ok] cross-file: burden_aair matches between df_rank and df_classification (82,375 tracts)
+  [ok] cross-file: burden_cases matches between df_rank and df_classification (82,375 tracts)
+  [ok] cross-file: burden_late_stage matches between df_rank and df_classification (82,375 tracts)
+[2/4] Tract table: 84,400 tracts, 3,144 counties
+  class_aair: High priority=34,117; Barrier gap=20,324; Lower priority=18,292; Access gap=6,571; Monitor=2,002; Burden suppressed: gaps present=1,981; NA=1,102; Burden suppressed: no gaps=11
+  class_cases: High priority=41,108; Barrier gap=24,755; Access gap=8,332; Lower priority=4,758; Monitor=2,353; Burden suppressed: gaps present=1,981; NA=1,102; Burden suppressed: no gaps=11
+  class_late_stage: High priority=31,023; Lower priority=26,519; Barrier gap=17,867; Access gap=4,498; Burden suppressed: gaps present=1,981; Monitor=1,399; NA=1,102; Burden suppressed: no gaps=11
+  pct_uninsured_f35_74_t: Low=27,773; Moderate=27,781; High=27,773; NA=1,073
+  pct_no_vehicle_hh_t: Low=27,785; Moderate=27,796; High=27,783; NA=1,036
+  pct_no_hs_f25_t: Low=27,825; Moderate=27,830; High=27,824; NA=921
+  pct_lep_hh_t: Low=27,786; Moderate=27,794; High=27,784; NA=1,036
+[3/4] County table
+  county_burden.csv          3,144 rows, 9 columns used
+  map counties: 3,143; counties with tract data: 3,144; map counties without tracts: 8
+[note] 7 map counties span >1 burden county (burden = the one with most women 40-74): 09110, 09130, 09140, 09150, 09160, 09180, 09190
+  county burden: 2,327 counties with any burden value; 825 all-NA (suppressed / unmatched); 2 burden rows unused
+[4/4] Writing outputs
+  C:\Users\jyang\Documents\ShinyApps\cancer_screening_mapper_v3\data\app\tract_values.csv  (84,400 rows, 37 variables)
+  C:\Users\jyang\Documents\ShinyApps\cancer_screening_mapper_v3\data\app\county_values.csv (3,152 rows, 36 variables)
+QA summary: all tertile checks passed

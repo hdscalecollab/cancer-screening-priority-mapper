@@ -8,8 +8,9 @@
 # Purpose
 #   Build tract-level barrier and access indicators (ACS 2019-2023, mammography
 #   distance), rank county-level late-stage breast cancer burden across
-#   counties, and classify tracts into priority classes separately for each
-#   burden measure.
+#   counties, rank access and barriers within urban and rural tracts, and
+#   classify tracts into priority classes for each burden measure at every
+#   combination of user-selectable cutoffs (67th, 80th, 90th percentile).
 #
 # Summary of changes from the original script
 #   Bug fixes (these changed results)
@@ -20,9 +21,9 @@
 #      _055-058). The original divided by the at/above-poverty count only.
 #   3. County burden is ranked across counties (one row per county), not across
 #      tracts. Ranking tract rows counted each county once per tract, so
-#      counties with many tracts shifted the tertile cutoffs.
-#   4. case_when(): `burden = 1` replaced with `==`, and tracts with a barrier
-#      score of exactly 6 now receive a class (cutoff is >= 6; see settings).
+#      counties with many tracts shifted the cutoffs.
+#   4. case_when(): `burden = 1` replaced with `==`, and tracts on the barrier
+#      cutoff now receive a class.
 #   5. Columns are selected by name, not position. c(6:25) after merge() picked
 #      up the wrong variables (join key moved, .x/.y suffixes added) and ranked
 #      raw counts.
@@ -37,9 +38,8 @@
 #   8. Added women 50-74 (matches PLACES mammography age range) and labeled
 #      uninsured and poverty measures with their actual age range (35-74).
 #   9. County burden is read from the county-level State Cancer Profiles file
-#      and joined to tracts by county FIPS (first 5 digits of GEOID), replacing
-#      the tract-joined incidence file. This keeps all counties, including
-#      suppressed ones, and avoids tracts that failed to join.
+#      and joined to tracts by county FIPS, replacing the tract-joined
+#      incidence file. This keeps all counties, including suppressed ones.
 #
 #   Robustness and clean-up
 #  10. ACS columns are referenced by explicit variable lists, so results do not
@@ -47,19 +47,48 @@
 #  11. Margin-of-error columns are dropped with a precise pattern ("_###M").
 #  12. merge() replaced with left_join() with explicit relationships, plus
 #      checks for unmatched tracts and counties.
-#  13. Tertile labels use cut() with explicit breaks; the original nested
-#      ifelse() returned correct results only because two errors cancelled out.
+#  13. The original nested ifelse() tertile labels returned correct results
+#      only because two errors cancelled out (tertiles since replaced; #18).
 #  14. Removed setwd() and personal paths; write_csv() no longer adds a
 #      row-number column.
 #  15. Added a long-format output for the app's burden-measure selector.
-#  16. Connecticut tracts assigned to pre-2022 counties and Alaska census 
-#      areas 02063/02066 mapped to 02261 to match cancer data geography.
-#  17. Burden tertile columns selected by exact name (burden_t_cols), so
-#      burden_FIPS is not classified as a burden measure.
+#  16. Connecticut tracts assigned to pre-2022 counties and Alaska census
+#      areas 02063/02066 mapped to 02261 (burden_FIPS) to match cancer data
+#      geography.
+#  17. Burden columns selected by exact name, so burden_FIPS is not treated
+#      as a burden measure.
+#
+#   Cutoffs, urban/rural stratification, and sensitivity (team meeting)
+#  18. Tertiles replaced with percentile cutoffs. The summed barrier tertile
+#      score is replaced by a barrier index: the mean of the four barrier
+#      percentiles, re-ranked across tracts.
+#  19. Access and barrier percentiles are ranked within urban and rural tracts
+#      separately, using the county file's Urban/Rural label. National
+#      percentiles are kept (*_nat). Tracts whose county has no label fall
+#      back to national percentiles. Burden stays ranked nationally across
+#      counties.
+#  20. Removed df_rank.csv (tertile labels no longer used).
+#
+#   User-selected cutoffs for the web app
+#  21. Each domain (burden, access, barriers) can be set independently to the
+#      67th, 80th, or 90th percentile (`cut_options`): 27 combinations per
+#      burden measure.
+#  22. Each tract gets a "level" per domain: the highest cutoff it clears
+#      (0, 67, 80, 90; lvl_* columns). A domain is "high" when level >=
+#      the selected cutoff, so the app can classify any combination from one
+#      small file without recomputing percentiles.
+#  23. All combinations are precomputed as integer class codes
+#      (df_classification_all_cutoffs.csv, lookup in class_codes.csv), for
+#      apps that read classes directly instead of computing them.
+#  24. The sensitivity grid is replaced by cutoff_grid.csv: tract and women
+#      counts for every class at every combination, by burden measure and
+#      ranking scale. `sensitivity` (access cutoff = barrier cutoff) is kept
+#      for the figures script.
 #
 # Open questions for the team
-#   - Confirm the barrier cutoff (>= 6 on a 4-12 scale) and record it in the
-#     decision log.
+#   - Confirm the app's default cutoffs (`cutoffs`) and ranking scale
+#     (`pctl_scale`) and record them in the decision log.
+#   - Update the data dictionary for the lvl_* columns and new output files.
 # =============================================================================
 
 library(tidyverse)
@@ -76,17 +105,31 @@ burden_file   <- "US_Counties_Late_Stage_Breast_Cancer_2019-2023(in).csv"
 distance_file <- "mammography_distance.csv"
 
 # County file columns. Names = names used in this script; values = names in
-# the file. Update the values to match the county file.
+# county_raw after the rename step below.
 fips_col    <- "FIPS"
 burden_cols <- c(aair       = "AAIR",
                  cases      = "Ave_annual_count",
                  late_stage = "Percent_late_stage")
 
-burden_t_cols <- paste0("burden_", names(burden_cols))   # burden_aair, burden_cases, burden_late_stage
+barrier_vars <- c("pct_uninsured_f35_74", "pct_no_vehicle_hh",
+                  "pct_no_hs_f25", "pct_lep_hh")
 
-barrier_vars   <- c("pct_uninsured_f35_74", "pct_no_vehicle_hh",
-                    "pct_no_hs_f25", "pct_lep_hh")
-barrier_cutoff <- 6             # barrier score range is 4-12
+# Cutoffs users can choose in the app, for each domain independently
+cut_options <- c(67, 80, 90)
+
+# Default cutoffs shown when the app opens (must be in cut_options)
+cutoffs <- c(burden = 90, access = 67, barriers = 67)
+stopifnot("Default cutoffs must be in cut_options" = all(cutoffs %in% cut_options))
+
+# Percentile scale for access and barriers: "ur" = ranked within urban/rural,
+# "nat" = ranked nationally. Used for the default and precomputed classes;
+# cutoff_grid.csv reports both.
+pctl_scale <- "ur"
+
+# Class labels, in display order, with integer codes for the precomputed file
+class_levels <- c("High priority", "Access gap", "Barrier gap", "Monitor",
+                  "Lower priority", "Burden suppressed: gaps present",
+                  "Burden suppressed: no gaps")
 
 # ---- Helpers ----------------------------------------------------------------
 fix_geoid <- function(x, n) str_pad(as.character(x), n, pad = "0")
@@ -98,20 +141,36 @@ row_sum   <- function(cols) rowSums(pick(all_of(cols)))
 # Commas are removed first so "1,234" stays a number.
 to_num <- function(x) suppressWarnings(as.numeric(str_remove_all(x, ",")))
 
-pctl    <- function(x) 100 * percent_rank(x)
-tertile <- function(x) as.integer(cut(pctl(x), c(0, 33.33, 66.67, 100),
-                                      include.lowest = TRUE))   # 1 low, 2 moderate, 3 high
-tertile_label <- function(t) factor(t, levels = 1:3, labels = c("low", "moderate", "high"))
+pctl <- function(x) 100 * percent_rank(x)   # 0 = lowest, 100 = highest
 
-classify <- function(burden, access, barriers) case_when(
-  is.na(access) | is.na(barriers)                           ~ NA_character_,  # missing tract data
-  is.na(burden) & (access > 1 | barriers >= barrier_cutoff) ~ "Burden suppressed: gaps present",
-  is.na(burden)                                             ~ "Burden suppressed: no gaps",
-  burden == 1                                               ~ "Lower priority",
-  access > 1 & barriers >= barrier_cutoff                   ~ "High priority",
-  access > 1                                                ~ "Access gap",
-  barriers >= barrier_cutoff                                ~ "Barrier gap",
-  .default                                                  = "Monitor")
+# Highest cutoff a percentile clears: 0, 67, 80, or 90 (NA stays NA).
+# level >= cut is identical to percentile >= cut for any cut in cut_options.
+pctl_level <- function(p, cuts = cut_options) {
+  out <- if_else(is.na(p), NA_integer_, 0L)
+  for (k in sort(cuts)) out[!is.na(p) & p >= k] <- as.integer(k)
+  out
+}
+
+classify <- function(burden_hi, access_gap, barrier_hi) case_when(
+  is.na(access_gap) | is.na(barrier_hi)        ~ NA_character_,   # missing tract data
+  is.na(burden_hi) & (access_gap | barrier_hi) ~ "Burden suppressed: gaps present",
+  is.na(burden_hi)                             ~ "Burden suppressed: no gaps",
+  !burden_hi                                   ~ "Lower priority",
+  access_gap & barrier_hi                      ~ "High priority",
+  access_gap                                   ~ "Access gap",
+  barrier_hi                                   ~ "Barrier gap",
+  .default                                     = "Monitor")
+
+# Classify tracts for one burden measure at a set of cutoffs and scale.
+# Uses levels, so the same function works in a Shiny app on df_app.csv.
+classify_at <- function(data, burden, cut = cutoffs, scale = pctl_scale) {
+  classify(
+    burden_hi  = data[[paste0("lvl_", burden)]]          >= cut[["burden"]],   # county-level
+    access_gap = data[[paste0("lvl_access_", scale)]]    >= cut[["access"]],
+    barrier_hi = data[[paste0("lvl_barriers_", scale)]]  >= cut[["barriers"]])
+}
+
+snake <- function(x) str_remove(str_replace_all(str_to_lower(x), "[^a-z0-9]+", "_"), "_$")
 
 # ---- ACS tract indicators ---------------------------------------------------
 acs <- read_csv(file.path(data_dir, acs_file),
@@ -150,8 +209,7 @@ df_calcs <- acs |>
     pct_no_vehicle_hh    = pct(B25044_003E + B25044_010E, B25044_001E)
   )
 
-
-# county mis-matches, fixes:
+# ---- County mismatches: Connecticut and Alaska -------------------------------
 # Connecticut: assign each tract (planning-region GEOID) to its pre-2022 county
 ct_tracts <- tracts("CT", year = 2023, cb = FALSE) |>      # full boundaries, includes water tracts
   st_point_on_surface() |>
@@ -169,54 +227,48 @@ stopifnot(!anyDuplicated(ct_lookup$GEOID20), !anyNA(ct_lookup$burden_FIPS))
 ak_recode <- c("02063" = "02261", "02066" = "02261")
 
 df_calcs <- df_calcs |>
+  select(-starts_with("burden_FIPS")) |>          # safe to rerun
   left_join(ct_lookup, by = "GEOID20", relationship = "one-to-one") |>
-  mutate(burden_FIPS = coalesce(burden_FIPS,
-                                unname(ak_recode[FIPS]),
-                                FIPS))
+  mutate(burden_FIPS = coalesce(burden_FIPS, unname(ak_recode[FIPS]), FIPS))
 
 write_csv(df_calcs, file.path(out_dir, "df_w_calcs.csv"))
 
-# ---- County burden (one row per county) -------------------------------------
+# ---- County burden and urban/rural (one row per county) ---------------------
 # Read everything as text: numeric FIPS lose leading zeros, and suppressed
-# values are text markers. If the file has title rows above the header
-# (common in State Cancer Profiles exports), add skip = <n> to read_csv().
+# values are text markers.
 county_raw <- read_csv(file.path(data_dir, burden_file),
                        col_types = cols(.default = "c"))
 
-county_raw  <- county_raw  %>%
-  mutate(County = str_squish(str_remove_all(County, "\\([^)]*\\)")),
-         Urban_rural = `2023 Rural-Urban Continuum Codes([rural urban note])`,
-         AAIR = `Age-Adjusted Incidence Rate([rate note]) - cases per 100,000`,
-         Ave_annual_count = `Average Annual Count`,
-         Percent_late_stage = `Percent of Cases with Late Stage`) %>%
+county_raw <- county_raw |>
+  mutate(County             = str_squish(str_remove_all(County, "\\([^)]*\\)")),
+         Urban_rural        = `2023 Rural-Urban Continuum Codes([rural urban note])`,
+         AAIR               = `Age-Adjusted Incidence Rate([rate note]) - cases per 100,000`,
+         Ave_annual_count   = `Average Annual Count`,
+         Percent_late_stage = `Percent of Cases with Late Stage`) |>
   select(FIPS, Urban_rural, AAIR, Ave_annual_count, Percent_late_stage)
 
 county_burden <- county_raw |>
   transmute(FIPS = str_pad(str_trim(.data[[fips_col]]), 5, pad = "0"),
-            across(all_of(burden_cols), to_num)) |>          # renames to aair, cases, late_stage
-  filter(str_detect(FIPS, "^\\d{5}$"),                       # drops footnote rows
-         !str_ends(FIPS, "000")) |>                          # drops US and state rows
-  mutate(across(all_of(names(burden_cols)), pctl,    .names = "pctl_{.col}"),
-         across(all_of(names(burden_cols)), tertile, .names = "burden_{.col}"))
-
-# Check: should now return 0 rows
-df_calcs |> distinct(burden_FIPS, state) |>
-  anti_join(county_burden, by = c("burden_FIPS" = "FIPS"))
+            rurality = case_when(str_squish(Urban_rural) == "Urban" ~ "Urban",
+                                 str_squish(Urban_rural) == "Rural" ~ "Rural"),   # "N/A" becomes NA
+            across(all_of(burden_cols), to_num)) |>
+  filter(str_detect(FIPS, "^\\d{5}$"),
+         !str_ends(FIPS, "000")) |>
+  mutate(across(all_of(names(burden_cols)), pctl, .names = "pctl_{.col}"))   # ranked across counties
 
 stopifnot("County burden must be one row per county" = !anyDuplicated(county_burden$FIPS))
+count(county_burden, rurality) |> print()        # expect ~1,187 Urban, ~1,956 Rural
 
-nrow(county_burden)                                                          # ~3,144
+nrow(county_burden)                                                               # ~3,144
 county_burden |> summarise(across(all_of(names(burden_cols)), ~ sum(is.na(.x))))  # suppressed per measure
 
-# Tract counties with no row in the county file (check Connecticut planning
-# regions and recent Alaska boundary changes if any appear)
+# Tract counties with no row in the county file (should return 0 rows)
 df_calcs |>
-  distinct(FIPS, state) |>
-  anti_join(county_burden, by = "FIPS") |>
-  count(state, sort = TRUE) |>
+  distinct(burden_FIPS, state) |>
+  anti_join(county_burden, by = c("burden_FIPS" = "FIPS")) |>
   print()
 
-# ---- Mammography distance ---------------------------------------------------
+# ---- Mammography distance and join -------------------------------------------
 mam_distance <- read_csv(file.path(data_dir, distance_file),
                          col_types = cols(GEOID20 = "c")) |>
   transmute(GEOID20 = fix_geoid(GEOID20, 11), NEAR_DIST)   # meters
@@ -225,46 +277,150 @@ df_all <- df_calcs |>
   left_join(mam_distance, by = "GEOID20", relationship = "one-to-one") |>
   left_join(county_burden, by = c("burden_FIPS" = "FIPS"), relationship = "many-to-one")
 
+stopifnot("No rural tracts found; check Urban_rural" =
+            any(df_all$rurality == "Rural", na.rm = TRUE))
+
 df_all |>
   summarise(n_tracts = n(),
-            across(c(NEAR_DIST, all_of(names(burden_cols))), ~ sum(is.na(.x)))) |>
+            across(c(NEAR_DIST, rurality, all_of(names(burden_cols))), ~ sum(is.na(.x)))) |>
   print()
 
-# ---- Tract percentiles, tertiles, and classification ------------------------
-df_class <- df_all |>
-  mutate(across(all_of(barrier_vars), pctl,    .names = "pctl_{.col}"),
-         across(all_of(barrier_vars), tertile, .names = "{.col}_t"),
-         pctl_NEAR_DIST = pctl(NEAR_DIST),
-         access   = tertile(NEAR_DIST),
-         barriers = rowSums(pick(all_of(paste0(barrier_vars, "_t"))))) |>   # 4-12
-  mutate(across(all_of(burden_t_cols), ~ classify(.x, access, barriers),
-                .names = "{sub('burden_', 'class_', .col)}"))
+# Tracts with no Urban/Rural label (these use national percentiles)
+df_all |> filter(is.na(rurality)) |> count(state, burden_FIPS) |> print(n = Inf)
 
-# Percentiles (0-100); burden percentiles are county-level
+# ---- Tract percentiles: national and urban/rural-stratified -----------------
+df_scores <- df_all |>
+  # National ranking across all tracts
+  mutate(across(all_of(barrier_vars), pctl, .names = "pctl_nat_{.col}"),
+         barrier_index_nat = rowMeans(pick(all_of(paste0("pctl_nat_", barrier_vars)))),
+         pctl_barriers_nat = pctl(barrier_index_nat),
+         pctl_access_nat   = pctl(NEAR_DIST)) |>
+  # Ranking within urban and within rural tracts
+  group_by(rurality) |>
+  mutate(across(all_of(barrier_vars), pctl, .names = "pctl_ur_{.col}"),
+         barrier_index_ur = rowMeans(pick(all_of(paste0("pctl_ur_", barrier_vars)))),
+         pctl_barriers_ur = pctl(barrier_index_ur),
+         pctl_access_ur   = pctl(NEAR_DIST)) |>
+  ungroup() |>
+  # Tracts with unknown rurality fall back to national percentiles
+  mutate(across(c(starts_with("pctl_ur_"), barrier_index_ur, pctl_barriers_ur, pctl_access_ur),
+                ~ if_else(is.na(rurality), NA_real_, .x)),
+         pctl_barriers_ur = coalesce(pctl_barriers_ur, pctl_barriers_nat),
+         pctl_access_ur   = coalesce(pctl_access_ur,   pctl_access_nat))
+
+# ---- Levels: highest cutoff each domain clears (0, 67, 80, 90) --------------
+level_src <- c(paste0("pctl_", names(burden_cols)),
+               "pctl_access_nat", "pctl_access_ur", "pctl_barriers_nat", "pctl_barriers_ur")
+
+df_scores <- df_scores |>
+  mutate(across(all_of(level_src), pctl_level, .names = "{sub('^pctl_', 'lvl_', .col)}"))
+# -> lvl_aair, lvl_cases, lvl_late_stage, lvl_access_nat, lvl_access_ur,
+#    lvl_barriers_nat, lvl_barriers_ur
+
+# Check: levels reproduce percentile cutoffs exactly (should be TRUE)
+stopifnot(identical(df_scores$lvl_access_ur >= 80, df_scores$pctl_access_ur >= 80))
+
+# ---- Default classification (app opening view) --------------------------------
+df_class <- df_scores
+for (b in names(burden_cols)) df_class[[paste0("class_", b)]] <- classify_at(df_scores, b)
+
+# Class counts by burden measure and urban/rural at the default cutoffs
+df_class |>
+  pivot_longer(starts_with("class_"), names_to = "burden_measure",
+               names_prefix = "class_", values_to = "class") |>
+  count(burden_measure, rurality, class) |>
+  pivot_wider(names_from = rurality, values_from = n, values_fill = 0) |>
+  print(n = Inf)
+
+# ---- Cutoff grid: every combination (summary for the app and decision log) ----
+# 2 scales x 3 burden measures x 3 x 3 x 3 cutoffs = 162 rows
+cutoff_grid <- expand_grid(scale          = c("nat", "ur"),
+                           burden_measure = names(burden_cols),
+                           burden_cut     = cut_options,
+                           access_cut     = cut_options,
+                           barrier_cut    = cut_options)
+
+summarise_combo <- function(scale, burden_measure, burden_cut, access_cut, barrier_cut) {
+  cls <- classify_at(df_scores, burden_measure,
+                     c(burden = burden_cut, access = access_cut, barriers = barrier_cut), scale)
+  hp  <- cls %in% "High priority"
+  class_n <- setNames(as.list(as.integer(table(factor(cls, class_levels)))),
+                      paste0("n_", snake(class_levels)))
+  bind_cols(
+    tibble(hp_tracts      = sum(hp),
+           hp_urban       = sum(hp & df_scores$rurality %in% "Urban"),
+           hp_rural       = sum(hp & df_scores$rurality %in% "Rural"),
+           hp_women_40_74 = sum(df_scores$n_women_40_74[hp], na.rm = TRUE),
+           hp_counties    = n_distinct(df_scores$burden_FIPS[hp]),
+           hp_states      = n_distinct(df_scores$state[hp])),
+    as_tibble(class_n),
+    tibble(n_no_data = sum(is.na(cls))))
+}
+
+cutoff_grid <- cutoff_grid |>
+  mutate(res = pmap(cutoff_grid, summarise_combo)) |>
+  unnest(res) |>
+  mutate(pct_of_tracts = round(100 * hp_tracts / nrow(df_scores), 2),
+         current       = scale == pctl_scale & burden_cut == cutoffs[["burden"]] &
+           access_cut == cutoffs[["access"]] & barrier_cut == cutoffs[["barriers"]])
+
+# Compact view: high-priority tracts at the selected scale
+cutoff_grid |>
+  filter(scale == pctl_scale) |>
+  select(burden_cut, access_cut, barrier_cut, burden_measure, hp_tracts) |>
+  pivot_wider(names_from = burden_measure, values_from = hp_tracts) |>
+  print(n = Inf)
+
+# Sensitivity view for the figures script (access cutoff = barrier cutoff)
+sensitivity <- cutoff_grid |>
+  filter(access_cut == barrier_cut) |>
+  rename(tract_cut = access_cut) |>
+  select(-barrier_cut)
+
+# ---- Precomputed classes for every combination (integer codes) ---------------
+# One column per burden measure x cutoff combination, at pctl_scale:
+#   cls_<measure>_b<burden>_a<access>_r<barriers>, e.g. cls_aair_b90_a67_r67
+class_codes <- tibble(class_code = seq_along(class_levels), class = class_levels)
+
+combos <- expand_grid(burden_measure = names(burden_cols),
+                      burden_cut = cut_options, access_cut = cut_options,
+                      barrier_cut = cut_options)
+
+precomputed <- pmap(combos, \(burden_measure, burden_cut, access_cut, barrier_cut) {
+  match(classify_at(df_scores, burden_measure,
+                    c(burden = burden_cut, access = access_cut, barriers = barrier_cut)),
+        class_levels)                                          # NA = no data
+}) |>
+  set_names(with(combos, sprintf("cls_%s_b%s_a%s_r%s",
+                                 burden_measure, burden_cut, access_cut, barrier_cut)))
+
+df_classification_all_cutoffs <- bind_cols(select(df_scores, GEOID20), as_tibble(precomputed))
+
+# ---- Outputs ------------------------------------------------------------------
+id_cols <- c("FIPS", "burden_FIPS", "GEOID20", "county", "state", "acs_period", "rurality")
+
+# Percentiles (0-100); burden percentiles are county-level and national
 df_percentiles <- df_class |>
-  select(FIPS, GEOID20, county, state, acs_period, starts_with("pctl_"))
+  select(all_of(id_cols), starts_with("pctl_"), barrier_index_nat, barrier_index_ur)
 
-# Low / moderate / high labels
-df_rank <- df_class |>
-  transmute(FIPS, GEOID20, county, state, acs_period,
-            across(c(paste0(barrier_vars, "_t"), access, all_of(burden_t_cols)),
-                   tertile_label))
-
-# Wide classification: one column per burden measure
+# App file: values, percentiles, levels, and default classes (one row per tract).
+# The app classifies any cutoff combination with classify_at() on lvl_* columns.
 df_classification <- df_class |>
-  select(FIPS, GEOID20, county, state, acs_period, all_of(names(burden_cols)),
-         barriers, access, all_of(burden_t_cols), starts_with("class_"))
+  select(all_of(id_cols), n_women_40_74, n_women_40_49, n_women_50_74,
+         all_of(names(burden_cols)), all_of(paste0("pctl_", names(burden_cols))),
+         NEAR_DIST, pctl_access_nat, pctl_access_ur, pctl_barriers_nat, pctl_barriers_ur,
+         starts_with("lvl_"), starts_with("class_"))
 
-# Long classification for the app's burden-measure selector
+# Long classification (default cutoffs) for the burden-measure selector
 df_classification_long <- df_classification |>
   pivot_longer(starts_with("class_"), names_to = "burden_measure",
                names_prefix = "class_", values_to = "class")
 
-# How often the burden views disagree
-count(df_classification, class_aair, class_cases) |> print(n = Inf)
-
-write_csv(county_burden,          file.path(out_dir, "county_burden.csv"))
-write_csv(df_percentiles,         file.path(out_dir, "df_percentiles.csv"))
-write_csv(df_rank,                file.path(out_dir, "df_rank.csv"))
-write_csv(df_classification,      file.path(out_dir, "df_classification.csv"))
-write_csv(df_classification_long, file.path(out_dir, "df_classification_long.csv"))
+write_csv(county_burden,                 file.path(out_dir, "county_burden.csv"))
+write_csv(df_percentiles,                file.path(out_dir, "df_percentiles.csv"))
+write_csv(df_classification,             file.path(out_dir, "df_classification.csv"))
+write_csv(df_classification_long,        file.path(out_dir, "df_classification_long.csv"))
+write_csv(df_classification_all_cutoffs, file.path(out_dir, "df_classification_all_cutoffs.csv"))
+write_csv(class_codes,                   file.path(out_dir, "class_codes.csv"))
+write_csv(cutoff_grid,                   file.path(out_dir, "cutoff_grid.csv"))
+write_csv(sensitivity,                   file.path(out_dir, "sensitivity_grid.csv"))

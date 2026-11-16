@@ -23,6 +23,7 @@ scripts/
   processing/
     mvp_classification.R      Builds indicators, ranks, and classifies tracts
     mvp_visualizations.R      Figures for class distributions and cutoff comparisons
+webApp/                       Shiny R web application
 ```
 
 Data files are **not** stored in this repository. Inputs and outputs live in the team's shared `MVP_data` folder in the NCI Data Jamboree Teams site.
@@ -140,6 +141,7 @@ See the project action plan for roles. Contributions are recorded using CRediT r
 
 - Original classification code: Alexis Carey
 - Revisions: Calvin Tribby
+- Web application: Jay Yang
 
 ## Contributing
 

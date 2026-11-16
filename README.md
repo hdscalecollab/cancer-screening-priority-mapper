@@ -2,7 +2,7 @@
 
 A flexible, multi-scale geospatial decision-support tool for identifying high-priority areas for breast cancer screening in the United States. The tool combines **county-level late-stage breast cancer burden** with **tract-level screening barriers and access to mammography**. Users choose the burden measure and the percentile cutoff for each domain.
 
-Developed for the 2026 NCI Data Jamboree.
+Developed for the 2026 NCI Data Jamboree (https://events.cancer.gov/nci/datajamboree).
 
 ## MVP scope
 

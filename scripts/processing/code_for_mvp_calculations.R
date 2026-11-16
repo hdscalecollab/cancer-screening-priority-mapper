@@ -54,7 +54,8 @@
 #  15. Added a long-format output for the app's burden-measure selector.
 #  16. Connecticut tracts assigned to pre-2022 counties and Alaska census
 #      areas 02063/02066 mapped to 02261 (burden_FIPS) to match cancer data
-#      geography.
+#      geography. County FIPS 51019 was "N/A". Manual look-up reveals it is urban. 
+#      Changed in county burden section.
 #  17. Burden columns selected by exact name, so burden_FIPS is not treated
 #      as a burden measure.
 #
@@ -250,7 +251,8 @@ county_raw <- county_raw |>
 county_burden <- county_raw |>
   transmute(FIPS = str_pad(str_trim(.data[[fips_col]]), 5, pad = "0"),
             rurality = case_when(str_squish(Urban_rural) == "Urban" ~ "Urban",
-                                 str_squish(Urban_rural) == "Rural" ~ "Rural"),   # "N/A" becomes NA
+                                 str_squish(Urban_rural) == "Rural" ~ "Rural",
+                                 str_squish(Urban_rural) == "N/A" ~ "Urban"),   # "N/A" becomes Urban (FIPS == 51019, which is an urban county)
             across(all_of(burden_cols), to_num)) |>
   filter(str_detect(FIPS, "^\\d{5}$"),
          !str_ends(FIPS, "000")) |>

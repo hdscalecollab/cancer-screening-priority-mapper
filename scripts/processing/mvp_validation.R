@@ -18,6 +18,7 @@
 #     F. Sensitivity: 3- vs 4-barrier index, national vs urban/rural ranking,
 #        PLACES precision, tract size, low-screening threshold, county-
 #        bootstrap CIs
+#     G. Six slide-ready figures (16:9) + headline numbers CSV
 #
 # Inputs (written by mvp_classification.R to out_dir)
 #   df_classification.csv             values, percentiles, levels, default classes
@@ -339,62 +340,230 @@ res_sens <- imap_dfr(sens_sets, \(s, nm)
                                 mutate(measure = lab, analysis = nm, .before = 1)))
 write_csv(res_sens, file.path(val_dir, "val_sensitivity.csv"))
 
-# ---- 8. Figures -------------------------------------------------------------
-p1 <- res_tract |>
-  filter(stratum == "overall") |>
-  pivot_longer(c(rho_raw, rho_adjusted, rho_within), names_to = "type", values_to = "rho") |>
-  mutate(type = factor(type, c("rho_raw", "rho_adjusted", "rho_within"),
-                       c("Raw", "Adjusted (residual PLACES)", "Within county")),
-         measure = paste0(measure, if_else(overlap == "independent", "", " *"))) |>
-  ggplot(aes(rho, reorder(measure, rho), fill = type)) +
-  geom_col(position = "dodge") +
-  geom_vline(xintercept = 0) +
-  labs(x = "Spearman rho with PLACES mammography (negative = aligned)", y = NULL,
-       fill = NULL, caption = "* shares inputs with PLACES") +
-  theme_minimal() + theme(legend.position = "bottom")
-ggsave(file.path(fig_dir, "fig_val_correlations.png"), p1, width = 8, height = 5, dpi = 300)
+# ---- 8. Presentation figures (16:9, slide-ready) ----------------------------
+# Six PNGs sized for a full 16:9 slide (13.33 x 7.5 in, 300 dpi), numbered in
+# suggested talk order. Subtitles are filled in from the results, so they
+# update when the analysis is rerun.
+# Colors: colorblind-safe; class colors should match the Shiny app (EDIT
+# class_pal if Jay's app uses different ones).
 
-p2 <- val |>
+fig_w <- 13.33; fig_h <- 7.5
+
+theme_slide <- function(base = 16) {
+  theme_minimal(base_size = base) +
+    theme(plot.title          = element_text(face = "bold", size = base + 6),
+          plot.subtitle       = element_text(color = "grey30", size = base + 1,
+                                             margin = margin(b = 12)),
+          plot.caption        = element_text(color = "grey45", size = base - 5, hjust = 0),
+          plot.title.position = "plot", plot.caption.position = "plot",
+          panel.grid.minor    = element_blank(),
+          legend.position     = "top", legend.justification = "left",
+          strip.text          = element_text(face = "bold", size = base - 1),
+          plot.margin         = margin(15, 20, 10, 15))
+}
+theme_set(theme_slide())
+
+save_slide <- function(p, name) {
+  ggsave(file.path(fig_dir, paste0(name, ".png")), p,
+         width = fig_w, height = fig_h, dpi = 300, bg = "white")
+}
+
+class_pal <- c("High priority"                   = "#B2182B",
+               "Access gap"                      = "#E69F00",
+               "Barrier gap"                     = "#CC79A7",
+               "Monitor"                         = "#56B4E9",
+               "Lower priority"                  = "#BDBDBD",
+               "Burden suppressed: gaps present" = "#8C8C8C",
+               "Burden suppressed: no gaps"      = "#E5E5E5")
+
+measure_lab <- c(distance        = "Distance to mammography",
+                 uninsured       = "Uninsured (women 35-74)",
+                 no_vehicle      = "No vehicle (households)",
+                 limited_english = "Limited English (households)",
+                 no_hs_diploma   = "No HS diploma (women 25+) *",
+                 barrier_4       = "Barrier index, 4 items *",
+                 barrier_3       = "Barrier index, 3 items (no education)")
+burden_lab  <- c(aair       = "Late-stage incidence rate",
+                 cases      = "Late-stage cases",
+                 late_stage = "% diagnosed late stage")
+
+src_cap <- paste0("Sources: CDC PLACES (mammography, women 50-74); ACS 2019-2023; ",
+                  "FDA-certified mammography facilities; State Cancer Profiles 2019-2023.")
+def_txt <- sprintf("burden %sth / access %sth / barriers %sth percentile",
+                   default_cut[["burden"]], default_cut[["access"]],
+                   default_cut[["barriers"]])
+is_default_combo <- function(b, a, r) b == default_cut[["burden"]] &
+  a == default_cut[["access"]] & r == default_cut[["barriers"]]
+
+# -- Fig 1: PLACES screening by priority class (headline result) --------------
+f1_dat <- val |>
   pivot_longer(all_of(paste0("class_", burden_names)), names_to = "burden_measure",
                names_prefix = "class_", values_to = "class") |>
   filter(!is.na(class)) |>
-  mutate(class = fct_rev(factor(class, class_codes$class))) |>
-  ggplot(aes(mammo_prev, class)) +
-  geom_boxplot(outlier.shape = NA) +
-  facet_wrap(~ burden_measure) +
-  labs(x = "PLACES mammography use (%)", y = NULL,
-       title = sprintf("PLACES screening by priority class (%s/%s/%s)",
-                       default_cut[["burden"]], default_cut[["access"]],
-                       default_cut[["barriers"]])) +
-  theme_minimal()
-ggsave(file.path(fig_dir, "fig_val_by_class.png"), p2, width = 10, height = 5, dpi = 300)
+  mutate(class = factor(class, rev(names(class_pal))),
+         burden_measure = factor(burden_lab[burden_measure], burden_lab))
+f1_n <- count(f1_dat, burden_measure, class)
 
-p3 <- res_combos |>
-  filter(outcome == paste0("raw_", primary_low), reportable) |>
-  ggplot(aes(factor(cut_access), factor(cut_barriers), fill = lift)) +
-  geom_tile() +
-  geom_text(aes(label = sprintf("%.2f", lift)), size = 3) +
-  facet_grid(burden_measure ~ paste("Burden", cut_burden)) +
-  scale_fill_gradient2(midpoint = 1) +
-  labs(x = "Access cutoff", y = "Barriers cutoff", fill = "Lift",
-       title = sprintf("Lift: high-priority share in bottom %s%% of screening / %s%%",
-                       primary_low, primary_low)) +
-  theme_minimal()
-ggsave(file.path(fig_dir, "fig_val_lift_heatmap.png"), p3, width = 9, height = 7, dpi = 300)
+med_aair <- res_class |> filter(burden_measure == "aair")
+med_aair <- setNames(med_aair$median_mammo, as.character(med_aair$class))
+xlim1    <- quantile(val$mammo_prev, c(.01, .99), na.rm = TRUE)
 
-# ---- 9. Console summary (for the report-out slide) --------------------------
-cat("\n== Tract measures vs PLACES (overall) ==\n")
-res_tract |>
+p_f1 <- ggplot(f1_dat, aes(mammo_prev, class, fill = class)) +
+  geom_vline(xintercept = median(val$mammo_prev), linetype = 2, color = "grey40") +
+  geom_boxplot(outlier.shape = NA, width = 0.65, show.legend = FALSE) +
+  geom_text(data = f1_n, aes(x = xlim1[[2]], y = class, label = scales::comma(n)),
+            inherit.aes = FALSE, hjust = 1, size = 3.6, color = "grey30") +
+  scale_fill_manual(values = class_pal) +
+  coord_cartesian(xlim = xlim1) +
+  facet_wrap(~ burden_measure, nrow = 1) +
+  labs(title = "Do high-priority tracts have lower screening?",
+       subtitle = sprintf(paste0("Median mammography use: High priority %.1f%% vs ",
+                                 "Lower priority %.1f%% (incidence rate burden). ",
+                                 "Dashed line = national median."),
+                          med_aair["High priority"], med_aair["Lower priority"]),
+       x = "CDC PLACES mammography use, women 50-74 (%)", y = NULL,
+       caption = paste0("Default app cutoffs: ", def_txt,
+                        ". Numbers = tracts per class.\n", src_cap))
+save_slide(p_f1, "fig1_screening_by_class")
+
+# -- Fig 2: alignment of each tract measure (raw, adjusted, within county) ----
+# Plotted as -rho so that bars to the right = more need where screening is lower
+f2_dat <- res_tract |>
   filter(stratum == "overall") |>
-  select(measure, overlap, rho_raw, rho_adjusted, rho_within, auc_raw) |>
-  mutate(across(where(is.numeric), \(x) round(x, 2))) |>
-  print()
+  pivot_longer(c(rho_raw, rho_adjusted, rho_within), names_to = "type",
+               values_to = "rho") |>
+  mutate(align = -rho,
+         type  = factor(type, c("rho_raw", "rho_adjusted", "rho_within"),
+                        c("Raw", "Adjusted for PLACES model inputs", "Within county")),
+         label = fct_reorder(measure_lab[measure], align, .fun = max))
+if ("rho_raw_lo" %in% names(f2_dat)) {
+  f2_dat <- f2_dat |>
+    mutate(lo = if_else(type == "Raw", -rho_raw_hi, NA_real_),
+           hi = if_else(type == "Raw", -rho_raw_lo, NA_real_))
+} else {
+  f2_dat <- mutate(f2_dat, lo = NA_real_, hi = NA_real_)
+}
+top2 <- f2_dat |> filter(type == "Raw") |> slice_max(align, n = 1, with_ties = FALSE)
 
-cat("\n== Default cutoffs: lift and sensitivity (bottom", primary_low, "%) ==\n")
-res_combos |>
-  filter(outcome == paste0("raw_", primary_low),
-         cut_burden == default_cut[["burden"]], cut_access == default_cut[["access"]],
-         cut_barriers == default_cut[["barriers"]]) |>
-  select(burden_measure, n_high, lift, sensitivity) |>
-  mutate(across(c(lift, sensitivity), \(x) round(x, 2))) |>
-  print()
+p_f2 <- ggplot(f2_dat, aes(label, align, color = type)) +
+  geom_hline(yintercept = 0, color = "grey40") +
+  geom_linerange(aes(ymin = lo, ymax = hi), position = position_dodge(0.65),
+                 linewidth = 1, na.rm = TRUE) +
+  geom_point(size = 4.5, position = position_dodge(0.65)) +
+  scale_color_manual(values = c("#0072B2", "#E69F00", "#009E73"), name = NULL) +
+  coord_flip() +
+  labs(title = "Which priority measures track low screening?",
+       subtitle = sprintf(paste0("Strongest raw alignment: %s (rho = %.2f). ",
+                                 "PLACES inputs + county explain %.0f%% of PLACES variation."),
+                          as.character(top2$label), -top2$align, 100 * r2_total),
+       x = NULL, y = "Alignment with low screening (-Spearman rho; right = aligned)",
+       caption = paste0("* Shares an input with the PLACES model (partly circular). ",
+                        "Lines = 95% county-bootstrap CI.\n", src_cap))
+save_slide(p_f2, "fig2_measure_alignment")
+
+# -- Fig 3: urban vs rural ----------------------------------------------------
+f3_dat <- res_tract |>
+  filter(stratum %in% c("urban", "rural")) |>
+  transmute(label = measure_lab[measure], stratum = str_to_title(stratum),
+            align = -rho_raw) |>
+  mutate(label = fct_reorder(label, align, .fun = max))
+
+p_f3 <- ggplot(f3_dat, aes(align, label)) +
+  geom_vline(xintercept = 0, color = "grey40") +
+  geom_line(aes(group = label), color = "grey70", linewidth = 2) +
+  geom_point(aes(color = stratum), size = 5) +
+  scale_color_manual(values = c(Urban = "#0072B2", Rural = "#009E73"), name = NULL) +
+  labs(title = "Alignment differs between urban and rural tracts",
+       subtitle = "Measures ranked within urban and rural tracts separately (app default)",
+       x = "Alignment with low screening (-Spearman rho)", y = NULL,
+       caption = paste0("* Shares an input with the PLACES model.\n", src_cap))
+save_slide(p_f3, "fig3_urban_rural")
+
+# -- Fig 4: county burden vs county screening ---------------------------------
+f4_dat <- county_val |>
+  pivot_longer(all_of(paste0("pctl_", burden_names)), names_to = "burden_measure",
+               names_prefix = "pctl_", values_to = "burden_pctl") |>
+  filter(!is.na(burden_pctl)) |>
+  mutate(burden_measure = factor(burden_lab[burden_measure], burden_lab))
+f4_lab <- res_county |>
+  mutate(burden_measure = factor(burden_lab[burden_measure], burden_lab),
+         lab = sprintf("rho = %.2f\nadj. for poverty = %.2f\n%s counties",
+                       rho_raw, rho_partial_pov, scales::comma(n_counties)))
+
+p_f4 <- ggplot(f4_dat, aes(burden_pctl, mammo_cty)) +
+  geom_point(alpha = 0.25, size = 1.3, color = "grey30") +
+  geom_smooth(method = "loess", formula = y ~ x, se = TRUE,
+              color = "#B2182B", fill = "#B2182B", alpha = 0.15) +
+  geom_label(data = f4_lab, aes(x = 2, y = Inf, label = lab), inherit.aes = FALSE,
+             hjust = 0, vjust = 1.1, size = 3.8, label.size = 0, fill = "white") +
+  facet_wrap(~ burden_measure, nrow = 1) +
+  labs(title = "County late-stage burden vs. county screening",
+       subtitle = "Each point is a county; PLACES aggregated from tracts (weighted by women 50-74)",
+       x = "County burden percentile (higher = more burden)",
+       y = "Mammography use, women 50-74 (%)",
+       caption = paste0("Suppressed counties excluded. ", src_cap))
+save_slide(p_f4, "fig4_county_burden")
+
+# -- Fig 5: lift heat map across all cutoff combinations ----------------------
+f5_dat <- res_combos |>
+  filter(outcome == paste0("raw_", primary_low)) |>
+  mutate(burden_measure = factor(burden_lab[burden_measure], burden_lab),
+         burden_col     = paste0("Burden ", cut_burden, "th+"),
+         fill_val       = if_else(reportable, lift, NA_real_),
+         lab            = if_else(reportable,
+                                  sprintf("%.2f\n%s", lift, scales::comma(n_high)),
+                                  "n < 30"),
+         is_default     = is_default_combo(cut_burden, cut_access, cut_barriers))
+
+p_f5 <- ggplot(f5_dat, aes(factor(cut_access), factor(cut_barriers), fill = fill_val)) +
+  geom_tile(color = "white", linewidth = 0.8) +
+  geom_tile(data = filter(f5_dat, is_default), fill = NA, color = "black",
+            linewidth = 1.3) +
+  geom_text(aes(label = lab), size = 3.3, lineheight = 0.9) +
+  scale_fill_gradient2(low = "#2166AC", mid = "white", high = "#B2182B",
+                       midpoint = 1, na.value = "grey92", name = "Lift") +
+  facet_grid(burden_measure ~ burden_col, labeller = label_wrap_gen(18)) +
+  labs(title = "How well does each cutoff combination find low-screening tracts?",
+       subtitle = sprintf(paste0("Lift = share of high-priority tracts in the bottom %s%% ",
+                                 "of screening / %s%%. Lift > 1 = better than chance. ",
+                                 "Outlined = app default."), primary_low, primary_low),
+       x = "Access cutoff (percentile)", y = "Barriers cutoff (percentile)",
+       caption = paste0("Cell labels: lift and number of high-priority tracts. ", src_cap)) +
+  theme(panel.grid = element_blank(), legend.position = "right")
+save_slide(p_f5, "fig5_lift_heatmap")
+
+# -- Fig 6: precision vs reach trade-off --------------------------------------
+f6_dat <- filter(f5_dat, reportable)
+f6_def <- filter(f6_dat, is_default)
+
+p_f6 <- ggplot(f6_dat, aes(n_high, lift, color = burden_measure)) +
+  geom_hline(yintercept = 1, linetype = 2, color = "grey40") +
+  geom_point(size = 3.5, alpha = 0.8) +
+  geom_point(data = f6_def, shape = 21, size = 8, stroke = 1.4, color = "black",
+             fill = NA, show.legend = FALSE) +
+  geom_text(data = f6_def, aes(label = "App default"), color = "black",
+            vjust = -1.6, size = 4, show.legend = FALSE) +
+  scale_x_log10(labels = scales::comma) +
+  scale_color_manual(values = c("#0072B2", "#E69F00", "#009E73"), name = NULL) +
+  labs(title = "Stricter cutoffs: fewer tracts, more precise targeting?",
+       subtitle = "Each point is one cutoff combination (burden x access x barriers)",
+       x = "Number of high-priority tracts (log scale)",
+       y = sprintf("Lift (bottom %s%% of screening)", primary_low),
+       caption = paste0("Combinations with < 30 high-priority tracts not shown. ", src_cap))
+save_slide(p_f6, "fig6_precision_vs_reach")
+
+# ---- 9. Headline numbers (for the report-out slide) -------------------------
+headline <- bind_rows(
+  res_tract |>
+    filter(stratum == "overall") |>
+    transmute(item = paste("Tract:", measure), overlap,
+              rho_raw, rho_adjusted, rho_within, auc_raw),
+  res_combos |>
+    filter(outcome == paste0("raw_", primary_low),
+           is_default_combo(cut_burden, cut_access, cut_barriers)) |>
+    transmute(item = paste("Default classes:", burden_measure),
+              n_high, lift, sensitivity)) |>
+  mutate(across(where(is.double), \(x) round(x, 2)))
+write_csv(headline, file.path(val_dir, "val_headline_numbers.csv"))
+print(headline, n = Inf)
+cat("\nFigures saved to:", fig_dir, "\n")

@@ -161,7 +161,7 @@ It also saves 6 slide-ready figures (16:9, 300 dpi) to `data_dir/validation/figu
 
 ### Validation against CDC PLACES
 
-PLACES is a check on direction, not a gold standard. CDC models tract screening from [BFRSS survey data](https://www.cdc.gov/brfss/index.html) using age, sex, race/ethnicity, education, and county poverty, so it can't see local factors like distance to a facility. Education is both a PLACES input and one of our barriers, so a simple correlation would overstate agreement.
+PLACES is a check on direction, not a gold standard. CDC models tract screening from [BRFSS survey data](https://www.cdc.gov/brfss/index.html) using age, sex, race/ethnicity, education, and county poverty, so it can't see local factors like distance to a facility. Education is both a PLACES input and one of our barriers, so a simple correlation would overstate agreement.
 
 - **Low screening** = the bottom 20% of tracts on PLACES mammography use (10% and 33% as sensitivity checks).
 - **Alignment.** Spearman correlation and AUC between each priority measure and PLACES. Higher need should go with lower screening (correlation below 0, AUC above 0.5).

@@ -3,8 +3,6 @@
 # Cancer Screening Priority Mapper - validation against CDC PLACES
 # NCI Data Jamboree 2026
 #
-# Author: Calvin Tribby
-#
 # Purpose
 #   Check whether the priority measures and classes from mvp_classification.R
 #   line up with CDC PLACES tract estimates of mammography use
@@ -42,13 +40,13 @@
 library(tidyverse)
 
 # ---- Settings ---------------------------------------------------------------
-data_dir <- "C:/NCI_Data"                       # same as mvp_classification.R
+data_dir <- "C:/NCI_Data"                       
 out_dir  <- data_dir
 val_dir  <- file.path(out_dir, "validation")
 fig_dir  <- file.path(val_dir, "figures")
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 
-places_file <- "PLACES_census_tract_2025.csv"               # EDIT: name of your PLACES download
+places_file <- "PLACES_census_tract_2025.csv"               
 acs_file    <- "acs5_2019_2023_tract_MVP v2.csv"
 
 # PLACES columns (wide format)

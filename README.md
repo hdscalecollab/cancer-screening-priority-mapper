@@ -2,21 +2,21 @@
 
 A flexible, multi-scale geospatial decision-support tool for identifying high-priority areas for breast cancer screening in the United States. The tool combines **county-level late-stage breast cancer burden** with **tract-level screening barriers and access to mammography**. Users choose the burden measure and the percentile cutoff for each domain.
 
-Developed for the 2026 NCI Data Jamboree ([https://events.cancer.gov/nci/datajamboree](https://events.cancer.gov/nci/datajamboree)).
+Developed for the 2026 NCI Data Jamboree (<https://events.cancer.gov/nci/datajamboree>).
 
 ## MVP scope
 
 | Component | Geography | Source |
-|---|---|---|
-| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): [https://statecancerprofiles.cancer.gov/index.html](https://statecancerprofiles.cancer.gov/index.html) |
-| Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): [https://statecancerprofiles.cancer.gov/index.html](https://statecancerprofiles.cancer.gov/index.html) |
-| Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: [https://data.census.gov/table](https://data.census.gov/table) |
-| Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): [https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility](https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility) |
-| Mammography use, women 50-74 (validation only) | Census tract | CDC PLACES (2025), tract data, GIS-friendly (wide) format: [https://www.cdc.gov/places/](https://www.cdc.gov/places/) |
+|------------------------|------------------------|------------------------|
+| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): <https://statecancerprofiles.cancer.gov/index.html> |
+| Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): <https://statecancerprofiles.cancer.gov/index.html> |
+| Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: <https://data.census.gov/table> |
+| Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): <https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility> |
+| Mammography use, women 50-74 (validation only) | Census tract | CDC PLACES (2025), tract data, GIS-friendly (wide) format: <https://www.cdc.gov/places/> |
 
 ## Repository structure
 
-```text
+``` text
 README.md
 docs/
   data_dictionary.md          Variables and classes for every output file
@@ -43,7 +43,7 @@ Data files are **not** stored in this repository. Inputs and outputs live in the
 Put these files in a local data folder and set `data_dir` in each script's settings block.
 
 | File | Contents | Used by |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | acs5_2019_2023_tract_MVP v2.csv | ACS 2019-2023 tract estimates (see codebook_acs5_2019_2023_MVP.csv) | classification, validation |
 | US_Counties_Late_Stage_Breast_Cancer_2019-2023(in).csv | County late-stage breast cancer measures and Urban/Rural label from State Cancer Profiles | classification |
 | mammography_distance.csv | Tract distance to the nearest mammography facility (NEAR_DIST, meters) | classification |
@@ -54,7 +54,7 @@ Put these files in a local data folder and set `data_dir` in each script's setti
 Key settings at the top of mvp_classification.R:
 
 | Setting | Default | Purpose |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | cut_options | c(67, 80, 90) | Percentile cutoffs users can choose for each domain in the app |
 | cutoffs | burden = 90, access = 67, barriers = 67 | Cutoffs shown when the app opens (must be in cut_options) |
 | pctl_scale | "ur" | Ranking for access and barriers: "ur" = within urban and rural tracts, "nat" = national |
@@ -62,7 +62,7 @@ Key settings at the top of mvp_classification.R:
 Key settings at the top of mvp_validation.R:
 
 | Setting | Default | Purpose |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | places_file | "PLACES_tract.csv" | File name of the PLACES download |
 | places_id, places_prev, places_ci | TractFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_Crude95CI | PLACES column names |
 | default_cut | burden = 90, access = 67, barriers = 67 | Must match `cutoffs` in the classification script |
@@ -73,7 +73,7 @@ Key settings at the top of mvp_validation.R:
 
 ### Run
 
-```r
+``` r
 source("scripts/processing/mvp_classification.R")
 source("scripts/processing/mvp_visualizations.R")   # optional figures
 source("scripts/processing/mvp_validation.R")       # needs classification outputs + PLACES
@@ -97,11 +97,11 @@ The validation script prints the PLACES tract count and missing values, the trac
 All classification outputs are written to `data_dir`. See [docs/data_dictionary.md](docs/data_dictionary.md) for every variable.
 
 | File | One row per | Description |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | df_w_calcs.csv | Tract | Derived ACS indicators |
 | county_burden.csv | County | Burden measures, urban/rural label, and burden percentiles |
 | df_percentiles.csv | Tract | National and urban/rural percentiles (0-100) for barriers, access, and county burden |
-| df_classification.csv | Tract | **Main app file.** Values, percentiles, cutoff levels (lvl_*), and classes at the default cutoffs |
+| df_classification.csv | Tract | **Main app file.** Values, percentiles, cutoff levels (lvl\_\*), and classes at the default cutoffs |
 | df_classification_long.csv | Tract x burden measure | Default classes in long format, for the app's burden-measure selector |
 | df_classification_all_cutoffs.csv | Tract | Precomputed integer class codes for all 81 combinations (3 burden measures x 27 cutoff combinations) |
 | class_codes.csv | Class | Lookup from integer class code to class label |
@@ -111,7 +111,7 @@ All classification outputs are written to `data_dir`. See [docs/data_dictionary.
 mvp_visualizations.R saves 8 figures (PNG, 300 dpi):
 
 | Figure | Shows |
-|---|---|
+|------------------------------------|------------------------------------|
 | fig_classes_overall | Class distribution at the default cutoffs, by burden measure and urban/rural |
 | fig_class_agreement | How often the three burden measures give a tract the same class |
 | fig_class_mix_cutoffs | Class distribution at all 27 cutoff combinations |
@@ -124,7 +124,7 @@ mvp_visualizations.R saves 8 figures (PNG, 300 dpi):
 mvp_validation.R writes to `data_dir/validation`:
 
 | File | One row per | Description |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | val_headline_numbers.csv | Measure or burden measure | Key results for the report-out slide |
 | val_tract_measures.csv | Tract measure x stratum | Correlation and AUC with PLACES: raw, adjusted, and within county; overall, urban, rural |
 | val_county_burden.csv | Burden measure | County burden vs county screening, raw and adjusted for poverty |
@@ -136,7 +136,7 @@ mvp_validation.R writes to `data_dir/validation`:
 It also saves 6 slide-ready figures (16:9, 300 dpi) to `data_dir/validation/figures`. Each figure answers a question in the validation plan overview (PLACES_Validation_Overview.docx):
 
 | Figure | Shows | Validation question |
-|---|---|---|
+|------------------------|------------------------|------------------------|
 | fig1_screening_by_class | PLACES screening by priority class, for each burden measure | Do high-priority tracts screen less? |
 | fig2_measure_alignment | Alignment of each tract measure with low screening: raw, adjusted, within county | Do the independent measures align, including after adjustment and within counties? |
 | fig3_urban_rural | Alignment in urban vs rural tracts | Robustness across rankings |
@@ -151,12 +151,12 @@ It also saves 6 slide-ready figures (16:9, 300 dpi) to `data_dir/validation/figu
 - **Urban/rural ranking.** Access and barrier percentiles are ranked within urban tracts and within rural tracts separately, using the county's Urban/Rural label, so distance is compared with similar places. National percentiles are also kept.
 - **Burden (county level).** Each burden measure is ranked across counties, not tracts, so that counties with many tracts don't shift the cutoffs. Tracts take on their county's percentile. Burden is always ranked nationally.
 - **Separate burden views.** Tracts are classified once for each burden measure, giving three views of burden: relative (AAIR), absolute (cases), and late-stage share. They are not combined into a single score.
-- **User-selected cutoffs.** A domain is "high" when its percentile is at or above the selected cutoff (67th, 80th, or 90th), set independently for burden, access, and barriers. Each tract stores a level per domain (lvl_* = 0, 67, 80, or 90, the highest cutoff cleared), so the app can classify any combination without recomputing percentiles.
+- **User-selected cutoffs.** A domain is "high" when its percentile is at or above the selected cutoff (67th, 80th, or 90th), set independently for burden, access, and barriers. Each tract stores a level per domain (lvl\_\* = 0, 67, 80, or 90, the highest cutoff cleared), so the app can classify any combination without recomputing percentiles.
 - **Classification.** See the class definitions in the data dictionary. Counties with suppressed burden values get their own classes instead of being dropped.
 
 ### Validation against CDC PLACES
 
-PLACES is a check on direction, not a gold standard. CDC models tract screening from survey data using age, sex, race/ethnicity, education, and county poverty, so it can't see local factors like distance to a facility. Education is both a PLACES input and one of our barriers, so a simple correlation would overstate agreement.
+PLACES is a check on direction, not a gold standard. CDC models tract screening from [BFRSS survey data](https://www.cdc.gov/brfss/index.html) using age, sex, race/ethnicity, education, and county poverty, so it can't see local factors like distance to a facility. Education is both a PLACES input and one of our barriers, so a simple correlation would overstate agreement.
 
 - **Low screening** = the bottom 20% of tracts on PLACES mammography use (10% and 33% as sensitivity checks).
 - **Alignment.** Spearman correlation and AUC between each priority measure and PLACES. Higher need should go with lower screening (correlation below 0, AUC above 0.5).
@@ -172,7 +172,7 @@ Education and the 4-item barrier index are reported separately and are not count
 
 In Shiny, load df_classification.csv and the classify() and classify_at() functions from the classification script, then classify on each user change:
 
-```r
+``` r
 classify_at(df, burden = "aair", cut = c(burden = 90, access = 80, barriers = 67), scale = "ur")
 ```
 

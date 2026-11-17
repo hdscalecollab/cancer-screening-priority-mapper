@@ -5,14 +5,15 @@
 #
 # Purpose
 #   Check whether the priority measures and classes from mvp_classification.R
-#   line up with CDC PLACES tract estimates of mammography use
+#   line up with CDC PLACES estimates of mammography use
 #   (MAMMOUSE_CrudePrev, women 50-74, past 2 years). Implements
 #   PLACES_Validation_Plan.docx:
 #     A. Tract measures vs. PLACES (Spearman rho, AUC), overall and urban/rural
 #     B. Adjusted: "residual PLACES" after removing PLACES' own model inputs
 #        (race/ethnicity, education, age mix) and county effects
 #     C. Within-county correlations (county-demeaned)
-#     D. County burden vs. PLACES aggregated to counties (+ partial for poverty)
+#     D. County burden vs. PLACES COUNTY estimates (+ partial for poverty);
+#        age-adjusted and tract-averaged PLACES as sensitivity checks
 #     E. Classes: PLACES by class at default cutoffs; lift and sensitivity
 #        for all 81 precomputed combinations (3 burden measures x 27 cutoffs)
 #     F. Sensitivity: 3- vs 4-barrier index, national vs urban/rural ranking,
@@ -28,9 +29,18 @@
 #   df_classification_all_cutoffs.csv integer class codes, cls_<m>_b<>_a<>_r<>
 #   class_codes.csv                   code -> class label
 # Plus:
-#   PLACES tract file, wide (GIS-friendly) format: one row per tract with
-#     TractFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_Crude95CI
+#   PLACES tract file, wide (GIS-friendly): TractFIPS, MAMMOUSE_CrudePrev,
+#     MAMMOUSE_Crude95CI                           -> Analyses A, B, C, E, F
+#   PLACES county file, wide (GIS-friendly), 2025 release: CountyFIPS,
+#     MAMMOUSE_CrudePrev, MAMMOUSE_AdjPrev, MAMMOUSE_Crude95CI -> Analysis D
 #   ACS file (only the B01001 female 50-74 columns, for the age-mix adjuster)
+#
+# Changes in this version
+#   - Analysis D uses official PLACES county estimates instead of averaging
+#     tract estimates. CT (planning regions) and AK 02261 don't match the
+#     cancer data's counties, so those fall back to the tract average.
+#   - val_county_burden.csv gains places_version (county_crude = primary,
+#     county_adj, tract_avg).
 #
 # Conventions
 #   All priority percentiles are 0-100 with HIGHER = MORE NEED.
@@ -47,13 +57,15 @@ val_dir  <- file.path(out_dir, "validation")
 fig_dir  <- file.path(val_dir, "figures")
 dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 
-places_file <- "PLACES_census_tract_2025.csv"               
-acs_file    <- "acs5_2019_2023_tract_MVP v2.csv"
+places_file     <- "PLACES_census_tract_2025.csv"           
+places_cty_file <- "PLACES_county_2025.csv"
+acs_file        <- "acs5_2019_2023_tract_MVP v2.csv"
 
-# PLACES columns (wide format)
+# PLACES columns (wide format; same names in tract and county files)
 places_id   <- "TractFIPS"
 places_prev <- "MAMMOUSE_CrudePrev"   # mammography use, women 50-74 (%)
 places_ci   <- "MAMMOUSE_Crude95CI"   # text, e.g. "(70.1, 75.3)"; NA if absent
+places_adj  <- "MAMMOUSE_AdjPrev"     # age-adjusted; county file only
 
 burden_names <- c("aair", "cases", "late_stage")
 
@@ -155,7 +167,7 @@ county_burden <- read_csv(file.path(out_dir, "county_burden.csv"),
 class_codes <- read_csv(file.path(out_dir, "class_codes.csv"), show_col_types = FALSE)
 hp_code     <- class_codes$class_code[class_codes$class == "High priority"]
 
-# ---- 2. Load PLACES (wide format) and join ----------------------------------
+# ---- 2. Load PLACES tract file (wide format) and join -----------------------
 # One row per tract; read as text so TractFIPS keeps leading zeros.
 # The wide file has no Year column: record the PLACES release and BRFSS
 # year in the README.
@@ -265,20 +277,55 @@ if (n_boot > 0) {
 write_csv(res_tract, file.path(val_dir, "val_tract_measures.csv"))
 
 # ---- 5. Analysis D: county burden -------------------------------------------
-# County poverty approximated as tract poverty weighted by women 40-74
-county_val <- val |>
-  group_by(burden_FIPS) |>
-  summarise(mammo_cty   = weighted.mean(mammo_prev, n_women_50_74, na.rm = TRUE),
-            poverty_cty = weighted.mean(pct_poverty_f35_74, n_women_40_74, na.rm = TRUE),
-            .groups = "drop") |>
-  inner_join(county_burden, by = c("burden_FIPS" = "FIPS"))
+# Primary: official CDC PLACES county estimates (modeled directly for counties,
+# with their own CIs). Crude prevalence is primary; age-adjusted prevalence is
+# a sensitivity check (AAIR is age-adjusted).
+# Fallback: the cancer data uses pre-2022 Connecticut counties and Valdez-
+# Cordova (02261), but PLACES uses CT planning regions and 02063/02066. For
+# those burden counties only, PLACES is averaged from tracts (weighted by
+# women 50-74). The tract-averaged version is also kept as a check.
+places_cty <- read_csv(file.path(data_dir, places_cty_file),
+                       col_select = c(CountyFIPS, all_of(c(places_prev, places_adj, places_ci))),
+                       col_types = cols(.default = "c")) |>
+  transmute(FIPS              = fix_geoid(CountyFIPS, 5),
+            mammo_cty_crude   = as.numeric(.data[[places_prev]]),
+            mammo_cty_adj     = as.numeric(.data[[places_adj]]),
+            mammo_cty_ci_width = ci_width_from_text(.data[[places_ci]]))
+stopifnot("Duplicate PLACES counties" = !anyDuplicated(places_cty$FIPS))
 
-res_county <- map_dfr(burden_names, \(b) tibble(
-  burden_measure  = b,
-  n_counties      = sum(!is.na(county_val[[b]])),
-  rho_raw         = rho(county_val[[b]], county_val$mammo_cty),
-  rho_partial_pov = partial_rho(county_val[[b]], county_val$mammo_cty,
-                                county_val$poverty_cty)))
+county_tract_avg <- val |>
+  group_by(burden_FIPS) |>
+  summarise(mammo_cty_tract = weighted.mean(mammo_prev, n_women_50_74, na.rm = TRUE),
+            poverty_cty     = weighted.mean(pct_poverty_f35_74, n_women_40_74, na.rm = TRUE),
+            .groups = "drop")
+
+county_val <- county_burden |>
+  rename(burden_FIPS = FIPS) |>
+  left_join(places_cty, by = c("burden_FIPS" = "FIPS"), relationship = "one-to-one") |>
+  inner_join(county_tract_avg, by = "burden_FIPS", relationship = "one-to-one") |>
+  mutate(mammo_source = if_else(is.na(mammo_cty_crude), "tract average", "PLACES county"),
+         mammo_cty    = coalesce(mammo_cty_crude, mammo_cty_tract),
+         mammo_cty_adj = coalesce(mammo_cty_adj, mammo_cty_tract))
+
+cat("\nCounty PLACES source (expect ~9 tract-average fallbacks: CT + 02261):\n")
+county_val |> filter(mammo_source == "tract average") |> pull(burden_FIPS) |> print()
+cat(sprintf("Agreement, PLACES county vs tract average: Spearman rho = %.2f\n",
+            with(filter(county_val, mammo_source == "PLACES county"),
+                 rho(mammo_cty_crude, mammo_cty_tract))))
+
+places_versions <- c(county_crude = "mammo_cty",       # primary
+                     county_adj   = "mammo_cty_adj",
+                     tract_avg    = "mammo_cty_tract")
+
+res_county <- expand_grid(burden_measure = burden_names,
+                          places_version = names(places_versions)) |>
+  mutate(res = map2(burden_measure, places_version, \(b, v) {
+    y <- county_val[[places_versions[[v]]]]
+    tibble(n_counties      = sum(!is.na(county_val[[b]]) & !is.na(y)),
+           rho_raw         = rho(county_val[[b]], y),
+           rho_partial_pov = partial_rho(county_val[[b]], y, county_val$poverty_cty))
+  })) |>
+  unnest(res)
 write_csv(res_county, file.path(val_dir, "val_county_burden.csv"))
 
 # ---- 6. Analysis E: classes -------------------------------------------------
@@ -325,7 +372,8 @@ res_combos <- imap_dfr(select(all_cut, starts_with("cls_")), \(code, nm)
 write_csv(res_combos, file.path(val_dir, "val_cutoff_combos.csv"))
 
 # ---- 7. Analysis F: sensitivity ---------------------------------------------
-# (3- vs 4-barrier and urban/rural strata are in val_tract_measures.csv)
+# (3- vs 4-barrier and urban/rural strata are in val_tract_measures.csv;
+#  county PLACES versions are in val_county_burden.csv)
 sens_sets <- list(
   national_rank = list(d = val, vars = measures_nat),
   min_women     = list(d = filter(val, n_women_50_74 >= min_women), vars = measures_ur))
@@ -418,7 +466,7 @@ p_f1 <- ggplot(f1_dat, aes(mammo_prev, class, fill = class)) +
   facet_wrap(~ burden_measure, nrow = 1) +
   labs(title = "Do high-priority tracts have lower screening?",
        subtitle = sprintf(paste0("Median mammography use: High priority %.1f%% vs ",
-                                 "Lower priority %.1f%% (incidence rate burden).\n",
+                                 "Lower priority %.1f%% (incidence rate burden).\n ",
                                  "Dashed line = national median."),
                           med_aair["High priority"], med_aair["Lower priority"]),
        x = "CDC PLACES mammography use, women 50-74 (%)", y = NULL,
@@ -479,13 +527,14 @@ p_f3 <- ggplot(f3_dat, aes(align, label)) +
        caption = paste0("* Shares an input with the PLACES model.\n", src_cap))
 save_slide(p_f3, "fig3_urban_rural")
 
-# -- Fig 4: county burden vs county screening ---------------------------------
+# -- Fig 4: county burden vs county screening (PLACES county estimates) -------
 f4_dat <- county_val |>
   pivot_longer(all_of(paste0("pctl_", burden_names)), names_to = "burden_measure",
                names_prefix = "pctl_", values_to = "burden_pctl") |>
   filter(!is.na(burden_pctl)) |>
   mutate(burden_measure = factor(burden_lab[burden_measure], burden_lab))
 f4_lab <- res_county |>
+  filter(places_version == "county_crude") |>
   mutate(burden_measure = factor(burden_lab[burden_measure], burden_lab),
          lab = sprintf("rho = %.2f\nadj. for poverty = %.2f\n%s counties",
                        rho_raw, rho_partial_pov, scales::comma(n_counties)))
@@ -498,10 +547,12 @@ p_f4 <- ggplot(f4_dat, aes(burden_pctl, mammo_cty)) +
              hjust = 0, vjust = 1.1, size = 3.8, label.size = 0, fill = "white") +
   facet_wrap(~ burden_measure, nrow = 1) +
   labs(title = "County late-stage burden vs. county screening",
-       subtitle = "Each point is a county; PLACES aggregated from tracts (weighted by women 50-74)",
+       subtitle = "Each point is a county; CDC PLACES county estimates of mammography use",
        x = "County burden percentile (higher = more burden)",
        y = "Mammography use, women 50-74 (%)",
-       caption = paste0("Suppressed counties excluded. ", src_cap))
+       caption = paste0("Suppressed counties excluded. Connecticut and Valdez-Cordova, AK: ",
+                        "PLACES averaged from tracts to match cancer-data counties.\n",
+                        src_cap))
 save_slide(p_f4, "fig4_county_burden")
 
 # -- Fig 5: lift heat map across all cutoff combinations ----------------------
@@ -558,6 +609,10 @@ headline <- bind_rows(
     filter(stratum == "overall") |>
     transmute(item = paste("Tract:", measure), overlap,
               rho_raw, rho_adjusted, rho_within, auc_raw),
+  res_county |>
+    filter(places_version == "county_crude") |>
+    transmute(item = paste("County burden:", burden_measure),
+              rho_raw, rho_partial_pov),
   res_combos |>
     filter(outcome == paste0("raw_", primary_low),
            is_default_combo(cut_burden, cut_access, cut_barriers)) |>

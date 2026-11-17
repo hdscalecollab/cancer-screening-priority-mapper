@@ -2,16 +2,17 @@
 
 A flexible, multi-scale geospatial decision-support tool for identifying high-priority areas for breast cancer screening in the United States. The tool combines **county-level late-stage breast cancer burden** with **tract-level screening barriers and access to mammography**. Users choose the burden measure and the percentile cutoff for each domain.
 
-Developed for the 2026 NCI Data Jamboree (https://events.cancer.gov/nci/datajamboree).
+Developed for the 2026 NCI Data Jamboree ([https://events.cancer.gov/nci/datajamboree](https://events.cancer.gov/nci/datajamboree)).
 
 ## MVP scope
 
 | Component | Geography | Source |
 |---|---|---|
-| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): https://statecancerprofiles.cancer.gov/index.html |
-| Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): https://statecancerprofiles.cancer.gov/index.html |
-| Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: https://data.census.gov/table |
-| Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility |
+| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): [https://statecancerprofiles.cancer.gov/index.html](https://statecancerprofiles.cancer.gov/index.html) |
+| Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): [https://statecancerprofiles.cancer.gov/index.html](https://statecancerprofiles.cancer.gov/index.html) |
+| Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: [https://data.census.gov/table](https://data.census.gov/table) |
+| Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): [https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility](https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility) |
+| Mammography use, women 50-74 (validation only) | Census tract | CDC PLACES (2025), tract data, GIS-friendly (wide) format: [https://www.cdc.gov/places/](https://www.cdc.gov/places/) |
 
 ## Repository structure
 

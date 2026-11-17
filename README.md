@@ -8,7 +8,6 @@ Developed for the 2026 NCI Data Jamboree (https://events.cancer.gov/nci/datajamb
 
 | Component | Geography | Source |
 |---|---|---|
-| Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): https://statecancerprofiles.cancer.gov/index.html |
 | Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): https://statecancerprofiles.cancer.gov/index.html |
 | Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): https://statecancerprofiles.cancer.gov/index.html |
 | Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: https://data.census.gov/table |
@@ -142,6 +141,7 @@ See the project action plan for roles. Contributions are recorded using CRediT r
 
 - Original classification code: Alexis Carey
 - Revisions: Calvin Tribby
+- Documentation: Jenny Ozga, Alexis Carey, Calvin Tribby
 - Web application: Jay Yang
 
 ## Contributing

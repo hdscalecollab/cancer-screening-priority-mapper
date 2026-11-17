@@ -89,7 +89,6 @@
 # Open questions for the team
 #   - Confirm the app's default cutoffs (`cutoffs`) and ranking scale
 #     (`pctl_scale`) and record them in the decision log.
-#   - Update the data dictionary for the lvl_* columns and new output files.
 # =============================================================================
 
 library(tidyverse)

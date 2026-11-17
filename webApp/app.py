@@ -3,7 +3,10 @@ Cancer Screening Priority Mapper
 ================================
 Shiny for Python app (core API).
 
-Layout: full-bleed map with a floating, collapsible control panel (left) and
+Pages (top navigation bar): Home (landing page), Priority & Access, Barriers, Data & Methods.
+Priority & Access and Barriers currently both show the same map (see MAP_PAGES).
+
+Map layout: full-bleed map with a floating, collapsible control panel (left) and
 four floating info boxes (top). Need-profile chart + scatterplot below the map.
 
 Data: built by prep_mvp_data.py from the MVP classification outputs
@@ -35,6 +38,9 @@ import pandas as pd
 import plotly
 import plotly.graph_objects as go
 from shiny import App, reactive, render, ui
+
+from pages.landing import landing_ui
+from pages.methods import methods_ui
 
 warnings.filterwarnings("ignore", message="Mean of empty slice")
 warnings.filterwarnings("ignore", message="All-NaN slice")
@@ -72,6 +78,10 @@ CLICK_HINT = "Click a polygon on the map"
 PLOT_FONT = dict(family="Inter, Segoe UI, Helvetica, Arial, sans-serif", size=12)
 GROUP_ORDER = ["Priority", "Access", "Barriers", "County burden", "Population", "Context"]
 MAX_TABLE_ROWS = 8
+
+# Navigation pages that show the map. Both entries currently show the same map; to split them,
+# give each nav_panel its own map content and drop the shared block in app_ui's header.
+MAP_PAGES = ("map", "barriers")
 
 
 # ---------------------------------------------------------------------------
@@ -470,18 +480,20 @@ BRIDGE_JS = """
 """
 
 APP_CSS = """
-:root { --titlebar-h: 52px; --gap: 16px; --panel-w: 300px; }
+:root { --titlebar-h: 56px; --gap: 16px; --panel-w: 300px; }
 body { background: #f4f5f7; overflow-x: hidden; }
-.container-fluid.app-root { padding: 0; }
 
-.app-titlebar {
-  position: sticky; top: 0; z-index: 1000; height: var(--titlebar-h);
-  display: flex; align-items: center; gap: 14px; padding: 0 20px;
-  background: #fff; border-bottom: 1px solid #e5e7eb; font-size: 1.25rem; font-weight: 500;
-}
-.app-titlebar .period { font-size: 0.78rem; color: #6b7280; font-weight: 400; }
-.app-titlebar .qa-flag { font-size: 0.75rem; font-weight: 500; color: #8a1c1c; background: #fde2e1;
-                         border-radius: 999px; padding: 2px 10px; }
+/* ---- Navigation bar ---- */
+.navbar { z-index: 1000; background: #fff !important; border-bottom: 1px solid #e5e7eb;
+          min-height: var(--titlebar-h); }
+.navbar .navbar-brand { font-size: 1.25rem; font-weight: 500; color: #111827; }
+.navbar .nav-link { font-size: 0.95rem; color: #4b5563; }
+.navbar .nav-link.active { color: #111827; font-weight: 600; }
+.nav-meta { font-size: 0.78rem; color: #6b7280; padding: 0 8px; }
+.nav-meta .qa-flag { font-size: 0.75rem; font-weight: 500; color: #8a1c1c; background: #fde2e1;
+                     border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
+.tab-content > .tab-pane { padding: 0; }
+body.bslib-page-navbar > .container-fluid { padding-left: 0; padding-right: 0; }  /* full-bleed map */
 
 .hero { position: relative; height: calc(100vh - var(--titlebar-h)); min-height: 640px; overflow: hidden; }
 .map-bg { position: absolute; inset: 0; }
@@ -573,6 +585,56 @@ html { scroll-behavior: smooth; }
 .nav-pill { display: inline-block; padding: 6px 14px; font-size: 0.82rem;
             color: #374151; text-decoration: none; }
 .nav-pill:hover { color: #111827; }
+
+/* ---- Landing / methods pages ---- */
+.lp-wrap { max-width: 1080px; margin: 0 auto; padding: 36px 20px 56px; color: #1f2937; }
+.lp-hero { padding: 28px 0 8px; }
+.lp-beta { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em;
+           text-transform: uppercase; color: #8a1c1c; background: #fde2e1; border-radius: 999px;
+           padding: 3px 12px; }
+.lp-title { font-size: 2.6rem; font-weight: 600; line-height: 1.15; margin: 14px 0 10px; color: #111827; }
+.lp-title-sm { font-size: 2rem; }
+.lp-purpose { font-size: 1.25rem; color: #374151; max-width: 760px; margin-bottom: 22px; }
+.lp-cta { display: flex; flex-wrap: wrap; gap: 12px; }
+.lp-section { margin-top: 44px; }
+.lp-section h2, .lp-h2-gap { font-size: 1.45rem; font-weight: 600; margin-bottom: 8px; color: #111827; }
+.lp-h2-gap { margin-top: 28px; }
+.lp-lead { font-size: 1rem; color: #4b5563; max-width: 820px; }
+.lp-after { margin-top: 16px; }
+.lp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+.lp-card { background: #fff; border-radius: 14px; padding: 18px 20px;
+           box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08); }
+.dim-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.dim-name { font-size: 1.15rem; font-weight: 600; }
+.dim-level { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+.dim-question { font-weight: 500; color: #8a1c1c; margin-bottom: 8px; }
+.dim-body { font-size: 0.92rem; margin-bottom: 6px; }
+.dim-note { font-size: 0.82rem; color: #6b7280; margin-bottom: 0; }
+.lp-table { width: 100%; background: #fff; border-radius: 14px; overflow: hidden; margin-top: 12px;
+            box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08); border-collapse: collapse; }
+.lp-table th { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+               color: #6b7280; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; }
+.lp-table td { padding: 10px 16px; font-size: 0.92rem; vertical-align: top; border-bottom: 1px solid #f0f1f3; }
+.lp-table td:first-child { display: flex; align-items: baseline; }
+.lp-table tr:last-child td { border-bottom: none; }
+.lp-chip { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; margin-right: 8px;
+           border: 1px solid rgba(0, 0, 0, 0.15); vertical-align: -1px; }
+.lp-class-name { font-weight: 600; }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 12px; }
+.stat-tile { background: #fff; border-radius: 14px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08); }
+.stat-value { font-size: 2rem; font-weight: 600; color: #B2182B; line-height: 1.1; }
+.stat-label { font-size: 0.88rem; color: #4b5563; margin-top: 4px; }
+.lp-fine { font-size: 0.78rem; color: #6b7280; margin-top: 10px; }
+.lp-caution { background: #fff; border-left: 4px solid #F4A261; border-radius: 10px; padding: 16px 22px;
+              box-shadow: 0 2px 10px rgba(20, 30, 50, 0.06); }
+.lp-links { padding-left: 1.2rem; }
+@media (max-width: 767.98px) {
+  .lp-title { font-size: 2rem; }
+  .lp-table, .lp-table tbody, .lp-table tr, .lp-table td { display: block; width: 100%; }
+  .lp-table thead { display: none; }
+  .lp-table tr { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+  .lp-table td { border: none; padding: 2px 16px; }
+}
 """
 
 
@@ -623,19 +685,26 @@ control_panel = ui.div(
     class_="float-panel glass",
 )
 
-app_ui = ui.page_fluid(
-    ui.head_content(
-        ui.tags.title(APP_TITLE),
-        ui.tags.script(src="plotlyjs/plotly.min.js"),
-        ui.tags.style(APP_CSS),
-    ),
-    ui.div(
-        APP_TITLE,
-        ui.span(f"ACS {META.get('acs_period', '')} · Cancer burden 2019-2023", class_="period"),
-        (ui.span(f"⚠ Data QA: {', '.join(QA_FAILED)} check(s) failed — see prep_qa.txt",
-                 class_="qa-flag") if QA_FAILED else None),
-        class_="app-titlebar",
-    ),
+# ---- Landing page inputs: class legend (same colors as the map) and example headline numbers ----
+_cls = next(d for d in CATALOG["tract"] if d["id"] == "class_aair")
+CLASS_LEGEND = list(zip(_cls["levels"], _cls["colors"]))
+
+
+def landing_stats() -> list[dict]:
+    """Example headline numbers from the default priority view (incidence-rate classes)."""
+    t = DF["tract"]
+    hp = t[t["class_aair"] == "High priority"]
+    return [
+        {"value": f"{len(hp):,}", "label": "census tracts in the High priority class"},
+        {"value": f"{hp['n_women_40_74'].sum() / 1e6:,.1f} million",
+         "label": "women aged 40–74 living in those tracts"},
+        {"value": f"{hp['state'].nunique()}", "label": "states (and DC) with at least one"},
+    ]
+
+
+# Priority & Access and Barriers both show this block until the pages are split.
+map_block = ui.panel_conditional(
+    "input.page === 'map' || input.page === 'barriers'",
     ui.div(
         ui.div(id="screen_map", class_="map-bg"),
         control_panel,
@@ -674,8 +743,38 @@ app_ui = ui.page_fluid(
         id="charts",
         class_="charts-section",
     ),
-    ui.tags.script(BRIDGE_JS),
-    class_="app-root",
+)
+
+app_ui = ui.page_navbar(
+    ui.nav_panel("Home",
+                 landing_ui(CLASS_LEGEND, landing_stats(),
+                            "Example figures for the app's default priority view. They will "
+                            "change as the classification method is finalized."),
+                 value="home"),
+    ui.nav_panel("Priority & Access", value="map"),
+    ui.nav_panel("Barriers", value="barriers"),
+    ui.nav_panel("Data & Methods", methods_ui(), value="methods"),
+    ui.nav_spacer(),
+    ui.nav_control(ui.span(
+        f"ACS {META.get('acs_period', '')} · Cancer burden 2019-2023",
+        (ui.span(f"⚠ Data QA: {', '.join(QA_FAILED)} check(s) failed — see prep_qa.txt",
+                 class_="qa-flag") if QA_FAILED else None),
+        class_="nav-meta")),
+    title=APP_TITLE,
+    id="page",
+    selected="home",
+    header=ui.TagList(
+        ui.head_content(
+            ui.tags.script(src="plotlyjs/plotly.min.js"),
+            ui.tags.style(APP_CSS),
+        ),
+        map_block,
+    ),
+    footer=ui.tags.script(BRIDGE_JS),
+    navbar_options=ui.navbar_options(position="sticky-top"),
+    window_title=APP_TITLE,
+    fillable=False,
+    padding=0,
 )
 
 
@@ -684,6 +783,25 @@ app_ui = ui.page_fluid(
 # ---------------------------------------------------------------------------
 def server(input, output, session):
     selected = reactive.value(None)  # GEOID of clicked polygon
+
+    # ---- Navigation ----
+    # The map and charts are only drawn while a map page is showing. Drawing into a hidden
+    # element gives the map the wrong size, so each draw effect waits on map_visible.
+    map_visible = reactive.value(False)
+
+    @reactive.effect
+    def _track_page():
+        map_visible.set(input.page() in MAP_PAGES)
+
+    @reactive.effect
+    @reactive.event(input.go_map)
+    def _go_map():
+        ui.update_navset("page", selected="map")
+
+    @reactive.effect
+    @reactive.event(input.go_methods)
+    def _go_methods():
+        ui.update_navset("page", selected="methods")
 
     @reactive.calc
     def cur_var():
@@ -797,6 +915,8 @@ def server(input, output, session):
     # =======================================================================
     @reactive.effect
     async def _draw_map():
+        if not map_visible():
+            return
         level, var = input.level(), cur_var()
         state = input.state()
         gj, feats = _geo()
@@ -974,6 +1094,8 @@ def server(input, output, session):
 
     @reactive.effect
     async def _draw_profile():
+        if not map_visible():
+            return
         level = input.level()
         gs = groups()
         prof = [d for d in CATALOG[level] if d.get("profile")]
@@ -1028,6 +1150,8 @@ def server(input, output, session):
 
     @reactive.effect
     async def _draw_scatter():
+        if not map_visible():
+            return
         level, xv, yv = input.level(), cur_x(), cur_y()
         show_trend = input.trend()
         gid = selected()

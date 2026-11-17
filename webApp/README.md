@@ -2,6 +2,19 @@
 
 Full-screen county / census-tract map of the MVP screening-priority classification. It has a floating control panel, four comparison boxes, a need-profile chart and a scatterplot.
 
+## Pages
+
+A top navigation bar switches between four pages (`ui.page_navbar` in `app.py`):
+
+| Page | Source | Notes |
+|---|---|---|
+| Home | `pages/landing.py` | Landing page. Class legend colors come from `variables.json`; the "At a glance" numbers are computed from `tract_values.csv`. |
+| Priority & Access | `map_block` in `app.py` | The map, info boxes and charts. |
+| Barriers | `map_block` in `app.py` | Currently the same map as Priority & Access. |
+| Data & Methods | `pages/methods.py` | Placeholder (source table and documentation links to come). |
+
+`MAP_PAGES` in `app.py` lists the pages that show the map. The map and charts are drawn only while one of them is showing. To give Barriers its own map, put separate map content in each `nav_panel` and remove the shared `map_block` from the page header. `pages/` is part of the app bundle, so the deploy command below needs no change.
+
 ## Pipeline
 
 ```

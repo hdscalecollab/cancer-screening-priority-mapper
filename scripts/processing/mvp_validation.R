@@ -418,7 +418,7 @@ p_f1 <- ggplot(f1_dat, aes(mammo_prev, class, fill = class)) +
   facet_wrap(~ burden_measure, nrow = 1) +
   labs(title = "Do high-priority tracts have lower screening?",
        subtitle = sprintf(paste0("Median mammography use: High priority %.1f%% vs ",
-                                 "Lower priority %.1f%% (incidence rate burden). ",
+                                 "Lower priority %.1f%% (incidence rate burden).\n",
                                  "Dashed line = national median."),
                           med_aair["High priority"], med_aair["Lower priority"]),
        x = "CDC PLACES mammography use, women 50-74 (%)", y = NULL,
@@ -453,7 +453,7 @@ p_f2 <- ggplot(f2_dat, aes(label, align, color = type)) +
   scale_color_manual(values = c("#0072B2", "#E69F00", "#009E73"), name = NULL) +
   coord_flip() +
   labs(title = "Which priority measures track low screening?",
-       subtitle = sprintf(paste0("Strongest raw alignment: %s (rho = %.2f). ",
+       subtitle = sprintf(paste0("Strongest raw alignment: %s (rho = %.2f).\n",
                                  "PLACES inputs + county explain %.0f%% of PLACES variation."),
                           as.character(top2$label), -top2$align, 100 * r2_total),
        x = NULL, y = "Alignment with low screening (-Spearman rho; right = aligned)",

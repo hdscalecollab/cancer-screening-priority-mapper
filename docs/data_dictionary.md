@@ -179,11 +179,11 @@ Rules are applied in order, and the first rule that matches sets the class. At t
 
 # Validation outputs (mvp_validation.R)
 
-Written to `data_dir/validation`. These files compare the priority measures and classes with CDC PLACES tract estimates of mammography use. PLACES is used for validation only and is not an input to the classification.
+Written to `data_dir/validation`. These files compare the priority measures and classes with CDC PLACES estimates of mammography use: tract estimates for tract measures and classes, and county estimates for county burden. PLACES is used for validation only and is not an input to the classification.
 
 ## Validation conventions
 
-- **PLACES screening** = MAMMOUSE_CrudePrev: % of women 50-74 with a mammogram in the past 2 years (model-based estimate).
+- **PLACES screening** = MAMMOUSE_CrudePrev: % of women 50-74 with a mammogram in the past 2 years (model-based estimate). Tract file for tract analyses; county file (2025 release) for the county burden analysis. MAMMOUSE_AdjPrev (age-adjusted, county file) is a sensitivity check.
 - **Low screening** = tract in the bottom X% of PLACES screening nationally. Primary threshold: 20%; sensitivity thresholds: 10% and 33%.
 - **Residual PLACES** = PLACES screening minus what its own model inputs predict (race/ethnicity, education, share of women 65-74) plus county effects. "Adjusted" results use this.
 - **Sign:** all priority measures are coded so higher = more need. **Aligned** with PLACES means rho below 0 and AUC above 0.5.
@@ -222,12 +222,13 @@ Used in the `measure` column of val_tract_measures.csv and val_sensitivity.csv.
 
 ## val_county_burden.csv: county burden vs county screening (one row per burden measure)
 
-PLACES is averaged to counties (burden_FIPS), weighted by women 50-74.
+One row per burden measure (3) x PLACES version (3) = 9 rows. County screening comes from the PLACES county file (2025 release), joined on CountyFIPS = burden_FIPS. For burden counties not in that file (the pre-2022 Connecticut counties and Valdez-Cordova, 02261), PLACES is averaged from tracts, weighted by women 50-74.
 
 | Variable | Type | Description |
 |---|---|---|
 | burden_measure | text | aair, cases, or late_stage. |
-| n_counties | count | Counties with a non-suppressed burden value. |
+| places_version | text | county_crude: PLACES county MAMMOUSE_CrudePrev (**primary**). county_adj: PLACES county MAMMOUSE_AdjPrev (age-adjusted). tract_avg: PLACES tract estimates averaged to counties (earlier method, kept as a check). The county versions use the tract-average fallback for unmatched counties. |
+| n_counties | count | Counties with both a non-suppressed burden value and a PLACES value. |
 | rho_raw | -1 to 1 | Spearman correlation between county burden and county screening. |
 | rho_partial_pov | -1 to 1 | Same, adjusted for county poverty (tract pct_poverty_f35_74 averaged to counties, weighted by women 40-74). |
 
@@ -275,8 +276,9 @@ Stacked summary; columns that don't apply to a row are NA. Values are rounded to
 
 | Variable | Description |
 |---|---|
-| item | "Tract: &lt;measure&gt;" (overall tract results) or "Default classes: &lt;burden measure&gt;" (default-cutoff lift). |
+| item | "Tract: &lt;measure&gt;" (overall tract results), "County burden: &lt;burden measure&gt;" (PLACES county estimates, crude), or "Default classes: &lt;burden measure&gt;" (default-cutoff lift). |
 | overlap, rho_raw, rho_adjusted, rho_within, auc_raw | Tract rows; see val_tract_measures.csv. |
+| rho_partial_pov | County burden rows; see val_county_burden.csv. |
 | n_high, lift, sensitivity | Class rows, bottom 20% of raw PLACES; see val_cutoff_combos.csv. |
 
 ## val_unmatched_tracts_by_state.csv: tracts with no PLACES match
@@ -295,6 +297,6 @@ PNG, 13.33 x 7.5 in (16:9 slide), 300 dpi.
 | fig1_screening_by_class.png | PLACES screening by class at the default cutoffs, by burden measure | val_by_class.csv |
 | fig2_measure_alignment.png | -rho for each tract measure: raw (with bootstrap CI), adjusted, within county | val_tract_measures.csv |
 | fig3_urban_rural.png | -rho in urban vs rural tracts | val_tract_measures.csv |
-| fig4_county_burden.png | County burden percentile vs county screening | val_county_burden.csv |
+| fig4_county_burden.png | County burden percentile vs PLACES county screening (crude); rho labels from places_version = county_crude | val_county_burden.csv |
 | fig5_lift_heatmap.png | Lift (bottom 20%) for all 81 combinations; app default outlined | val_cutoff_combos.csv |
 | fig6_precision_vs_reach.png | Lift vs number of high-priority tracts | val_cutoff_combos.csv |

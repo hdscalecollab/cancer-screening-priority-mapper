@@ -13,6 +13,8 @@ Developed for the 2026 NCI Data Jamboree (<https://events.cancer.gov/nci/datajam
 | Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: <https://data.census.gov/table> |
 | Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): <https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility> |
 | Mammography use, women 50-74 (validation only) | Census tract | CDC PLACES (2025), tract data, GIS-friendly (wide) format: <https://www.cdc.gov/places/> |
+| Mammography use, women 50-74 (validation only) | County | CDC PLACES (2025 release), county data, GIS-friendly (wide) format: <https://www.cdc.gov/places/> |
+
 
 ## Repository structure
 
@@ -48,6 +50,7 @@ Put these files in a local data folder and set `data_dir` in each script's setti
 | US_Counties_Late_Stage_Breast_Cancer_2019-2023(in).csv | County late-stage breast cancer measures and Urban/Rural label from State Cancer Profiles | classification |
 | mammography_distance.csv | Tract distance to the nearest mammography facility (NEAR_DIST, meters) | classification |
 | PLACES tract file (set `places_file`) | One row per tract: TractFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_Crude95CI | validation |
+| PLACES__County_Data_(GIS_Friendly_Format),_2025_release_20261104.csv | One row per county (3,143): CountyFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_AdjPrev, MAMMOUSE_Crude95CI | validation (county burden analysis) |
 
 ### Settings
 
@@ -63,8 +66,10 @@ Key settings at the top of mvp_validation.R:
 
 | Setting | Default | Purpose |
 |------------------------|------------------------|------------------------|
-| places_file | "PLACES_tract.csv" | File name of the PLACES download |
-| places_id, places_prev, places_ci | TractFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_Crude95CI | PLACES column names |
+| places_file | "PLACES_tract.csv" | File name of the PLACES tract download |
+| places_cty_file | "PLACES__County_Data_(GIS_Friendly_Format),_2025_release_20261104.csv" | File name of the PLACES county download |
+| places_id, places_prev, places_ci | TractFIPS, MAMMOUSE_CrudePrev, MAMMOUSE_Crude95CI | PLACES column names (prevalence and CI names are the same in the tract and county files) |
+| places_adj | MAMMOUSE_AdjPrev | Age-adjusted prevalence (county file; sensitivity check) |
 | default_cut | burden = 90, access = 67, barriers = 67 | Must match `cutoffs` in the classification script |
 | low_thresholds | c(10, 20, 33) | "Low screening" = bottom X% of tracts on PLACES |
 | primary_low | 20 | Primary low-screening threshold (team decision) |
@@ -90,7 +95,7 @@ The classification script prints checks for:
 
 It stops with an error if a county appears twice, no rural tracts are found, or a default cutoff is not one of cut_options.
 
-The validation script prints the PLACES tract count and missing values, the tract match rate (a warning below 95% suggests PLACES is on 2010 tracts and needs a crosswalk), the share of PLACES variation explained by its own model inputs, and the headline results. It stops if the PLACES file is missing TractFIPS or MAMMOUSE_CrudePrev, or has duplicate tracts.
+The validation script prints the PLACES tract count and missing values, the tract match rate (a warning below 95% suggests PLACES is on 2010 tracts and needs a crosswalk), the share of PLACES variation explained by its own model inputs, the counties that fall back to tract-averaged PLACES (expected: the Connecticut counties and 02261), the agreement between PLACES county estimates and tract averages, and the headline results. It stops if the PLACES tract file is missing TractFIPS or MAMMOUSE_CrudePrev, or if either PLACES file has duplicate tracts or counties.
 
 ### Outputs
 
@@ -127,7 +132,7 @@ mvp_validation.R writes to `data_dir/validation`:
 |------------------------|------------------------|------------------------|
 | val_headline_numbers.csv | Measure or burden measure | Key results for the report-out slide |
 | val_tract_measures.csv | Tract measure x stratum | Correlation and AUC with PLACES: raw, adjusted, and within county; overall, urban, rural |
-| val_county_burden.csv | Burden measure | County burden vs county screening, raw and adjusted for poverty |
+| val_county_burden.csv | Burden measure x PLACES version | County burden vs county screening (PLACES county estimates; age-adjusted and tract-averaged as checks), raw and adjusted for poverty |
 | val_by_class.csv | Burden measure x class | PLACES screening by class at the default cutoffs |
 | val_cutoff_combos.csv | Cutoff combination x outcome | Lift and sensitivity for all 81 combinations |
 | val_sensitivity.csv | Analysis x tract measure | Robustness checks |
@@ -140,7 +145,7 @@ It also saves 6 slide-ready figures (16:9, 300 dpi) to `data_dir/validation/figu
 | fig1_screening_by_class | PLACES screening by priority class, for each burden measure | Do high-priority tracts screen less? |
 | fig2_measure_alignment | Alignment of each tract measure with low screening: raw, adjusted, within county | Do the independent measures align, including after adjustment and within counties? |
 | fig3_urban_rural | Alignment in urban vs rural tracts | Robustness across rankings |
-| fig4_county_burden | County burden percentile vs county screening | Is county burden higher where screening is lower? |
+| fig4_county_burden | County burden percentile vs PLACES county screening | Is county burden higher where screening is lower? |
 | fig5_lift_heatmap | Lift for every cutoff combination; app default outlined | Which cutoffs best find low-screening tracts? |
 | fig6_precision_vs_reach | Lift vs number of high-priority tracts | Should validation inform the default cutoffs? |
 
@@ -162,7 +167,7 @@ PLACES is a check on direction, not a gold standard. CDC models tract screening 
 - **Alignment.** Spearman correlation and AUC between each priority measure and PLACES. Higher need should go with lower screening (correlation below 0, AUC above 0.5).
 - **Adjusted (strongest test).** PLACES is regressed on its own model inputs (race/ethnicity, education, share of women 65-74) plus county effects. Measures are then compared with what is left over.
 - **Within county.** Measures and PLACES are centered on their county means, so only differences between neighboring tracts count.
-- **County burden.** PLACES is averaged to counties (weighted by women 50-74) and compared with county burden, with and without adjusting for poverty.
+- **County burden.** County burden is compared with the official PLACES county estimates (crude prevalence), with and without adjusting for poverty. Two checks: age-adjusted PLACES county prevalence (AAIR is age-adjusted), and PLACES averaged from tracts to counties (weighted by women 50-74).
 - **Classes.** **Lift** = the share of high-priority tracts in the bottom 20% of screening divided by 20%. A lift of 1 is no better than chance; 2 means twice as many as chance. **Sensitivity** = the share of all low-screening tracts that are high priority (reach).
 - **Robustness.** A 3-item barrier index without education, national vs urban/rural ranking, dropping the 10% least precise PLACES estimates, dropping tracts with fewer than 100 women 50-74, and county-bootstrap confidence intervals.
 
@@ -184,6 +189,7 @@ Apps that don't run R can read the precomputed column instead, for example cls_a
 - **Alaska:** the Chugach (02063) and Copper River (02066) census areas are mapped to the former Valdez-Cordova census area (02261) to match the cancer data.
 - FIPS is the tract's current county code, used for display. burden_FIPS is the county used for the burden and urban/rural join. The two differ only for these tracts.
 - **PLACES:** joined on the 2020 tract GEOID. Check the match rate printed by the validation script; unmatched tracts by state are saved to val_unmatched_tracts_by_state.csv.
+- **PLACES county file:** joined on CountyFIPS. The 2025 release uses Connecticut's planning regions and Alaska's 02063/02066, which don't match the cancer data's counties. For those burden counties (the pre-2022 Connecticut counties and 02261), county PLACES is averaged from tracts instead.
 
 ### Limitations
 
@@ -193,6 +199,7 @@ Apps that don't run R can read the precomputed column instead, for example cls_a
 - With urban/rural ranking, a percentile compares a tract with similar tracts, not the whole country. A rural tract at a moderate percentile can still be farther from a facility than any urban tract; the raw distance (NEAR_DIST) is included for display.
 - ACS estimates have margins of error, which tend to be large for small tracts. Margins of error are not carried into the classification.
 - PLACES is modeled, not measured, and partly shares our inputs. Adjustment reduces this overlap but doesn't remove it.
+- PLACES county estimates are imprecise relative to how much counties differ (95% CIs average about 15 percentage points; county values have an SD of about 4), so county-level correlations are attenuated.
 - PLACES doesn't reflect local programs such as mobile mammography units, so it can't validate the access measure.
 - Data years and age ranges differ across sources (PLACES: women 50-74; uninsured: women 35-74).
 

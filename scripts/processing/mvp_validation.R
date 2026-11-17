@@ -466,7 +466,7 @@ p_f1 <- ggplot(f1_dat, aes(mammo_prev, class, fill = class)) +
   facet_wrap(~ burden_measure, nrow = 1) +
   labs(title = "Do high-priority tracts have lower screening?",
        subtitle = sprintf(paste0("Median mammography use: High priority %.1f%% vs ",
-                                 "Lower priority %.1f%% (incidence rate burden).\n ",
+                                 "Lower priority %.1f%% (incidence rate burden).\n",
                                  "Dashed line = national median."),
                           med_aair["High priority"], med_aair["Lower priority"]),
        x = "CDC PLACES mammography use, women 50-74 (%)", y = NULL,

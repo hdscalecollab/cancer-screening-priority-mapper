@@ -9,7 +9,7 @@ Developed for the 2026 NCI Data Jamboree (https://events.cancer.gov/nci/datajamb
 | Component | Geography | Source |
 |---|---|---|
 | Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): https://statecancerprofiles.cancer.gov/index.html |
-| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC):  |
+| Late-stage breast cancer burden (AAIR, average annual cases, % late stage), 2019-2023 | County | State Cancer Profiles (NCI/CDC): https://statecancerprofiles.cancer.gov/index.html |
 | Urban/rural designation | County | State Cancer Profiles county file (2023 Rural-Urban Continuum Codes, labeled Urban/Rural): https://statecancerprofiles.cancer.gov/index.html |
 | Screening-eligible women, race/ethnicity, and barrier indicators | Census tract (2020) | ACS 5-year, 2019-2023: https://data.census.gov/table |
 | Distance to the nearest mammography facility | Census tract (2020) | FDA MQSA facility list (geocoded): https://www.fda.gov/radiation-emitting-products/mammography-information-patients/search-certified-mammography-facility |

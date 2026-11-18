@@ -3,26 +3,26 @@ Cancer Screening Priority Mapper
 ================================
 Shiny for Python app (core API).
 
-Pages (top navigation bar): Home (landing page), Priority & Access, Barriers, Data & Methods.
-Priority & Access and Barriers currently both show the same map (see MAP_PAGES).
+Pages (top navigation bar)
+    Home               landing page (pages/landing.py)
+    Priority & Access  map of Priority / Access variables; cutoff selector (burden measure,
+                       ranking, burden / access / barrier cutoffs); Need-profile chart overlaid
+                       on the lower-left of the map
+    Barriers           map of all other variables (barriers, county burden, population,
+                       context); scatterplot overlaid on the lower-left of the map
+    Data & Methods     pages/methods.py
 
-Map layout: full-bleed map with a floating, collapsible control panel (left) and
-four floating info boxes (top). Need-profile chart + scatterplot below the map.
+Both map pages share one map, one set of info boxes and one floating control panel whose
+sections switch with the page, so the clicked polygon and the map view carry over.
 
-Data: built by prep_mvp_data.py from the MVP classification outputs
-(see data_dictionary.md). The app is driven by data/app/variables.json, so the
-dropdowns, colors, number formats and info-box tables follow the catalog.
+Priority classes are recomputed in the app from the lvl_* columns (classify.classify_at),
+following data_dictionary.md, so every cutoff combination is available instantly.
 
-Run locally (VS Code terminal):
-    shiny run --reload app.py
-
-Deploy to shinyapps.io:
-    rsconnect deploy shiny . --name <account> --title cancer-screening-priority-mapper
-
-Inputs (relative to this file):
-    data/app/tract_values.csv, county_values.csv, variables.json   (prep_mvp_data.py)
-    data/geo/...                                                    (prep_geodata.py)
-    data/geo/mammography.geojson          optional                  (prep_mammography_fda.py)
+Run locally:   shiny run --reload app.py
+Deploy:        rsconnect deploy shiny . --name <account> --title cancer-screening-priority-mapper
+Inputs:        data/app/{tract_values.csv, county_values.csv, variables.json}  (prep_mvp_data.py)
+               data/geo/...                                               (prep_geodata.py)
+               data/geo/mammography.geojson  optional                     (prep_mammography_fda.py)
 """
 
 from __future__ import annotations
@@ -39,6 +39,7 @@ import plotly
 import plotly.graph_objects as go
 from shiny import App, reactive, render, ui
 
+from classify import classify_at
 from pages.landing import landing_ui
 from pages.methods import methods_ui
 
@@ -52,6 +53,12 @@ APP_DIR = Path(__file__).resolve().parent
 APP_DATA = APP_DIR / "data" / "app"
 GEO_DIR = APP_DIR / "data" / "geo"
 MAMMO_PATH = GEO_DIR / "mammography.geojson"
+
+# for state-line
+STATE_LINES_PATH = GEO_DIR / "state_lines.geojson"
+STATE_LINE_COLOR = "#374151"   # dark grey, softened by the opacity below
+STATE_LINE_OPACITY = 0.35
+STATE_LINE_WIDTH = 0.8         # px
 
 APP_TITLE = "Cancer Screening Priority Mapper"
 DEFAULT_STATE = "06"  # California
@@ -73,16 +80,15 @@ SCATTER_POINT_COLOR = "#8C96A3"
 TREND_COLOR = "#3B4A5A"
 SELECTED_COLOR = "#E8615C"
 MAMMO_COLOR = "#1F6FB2"
+CUTOFF_MARK_COLOR = "#111827"
 
 CLICK_HINT = "Click a polygon on the map"
-PLOT_FONT = dict(family="Inter, Segoe UI, Helvetica, Arial, sans-serif", size=12)
+PLOT_FONT = dict(family="Inter, Segoe UI, Helvetica, Arial, sans-serif", size=11)
 GROUP_ORDER = ["Priority", "Access", "Barriers", "County burden", "Population", "Context"]
-MAX_TABLE_ROWS = 8
+MAX_TABLE_ROWS = 4          # rows in each info box (kept short so the map has room)
 
-# Navigation pages that show the map. Both entries currently show the same map; to split them,
-# give each nav_panel its own map content and drop the shared block in app_ui's header.
 MAP_PAGES = ("map", "barriers")
-
+PAGE_KEY = {"map": "pa", "barriers": "b"}   # page -> catalog "pages" key
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -92,11 +98,19 @@ META: dict = CATALOG["meta"]
 VARMETA: dict[str, dict[str, dict]] = {
     lvl: {d["id"]: d for d in CATALOG[lvl]} for lvl in ("county", "tract")
 }
+CLASS_LEVELS: list[str] = META["classes"]["levels"]
+CLASS_COLORS: list[str] = META["classes"]["colors"]
+CUT_OPTS = [str(c) for c in META["cutoffs"]["options"]]
+CUT_DEF = META["cutoffs"]["defaults"]
+MEASURES: dict = META["measures"]
+SCALES: dict = META["scales"]
+PROFILE: dict = META["profile"]
+QA_FAILED = META.get("qa_failed") or []
 
 
 def _read(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path, dtype={"GEOID": str, "FIPS": str, "burden_FIPS": str},
-                     keep_default_na=True)
+    df = pd.read_csv(path, dtype={"GEOID": str, "FIPS": str, "burden_FIPS": str,
+                                  "rurality": str}, keep_default_na=True)
     width = 11 if "tract" in path.name else 5
     df["GEOID"] = df["GEOID"].str.zfill(width)
     return df.set_index("GEOID")
@@ -117,6 +131,17 @@ GROUP_IDX = {
     "tract_by_state": _positions(_tidx.str[:2].values),
     "county_by_state": _positions(_cidx.str[:2].values),
 }
+TRACT_CTY_POS = _cidx.get_indexer(_tidx.str[:5])          # tract -> county row (-1 if none)
+TRACT_WOMEN = DF["tract"].get("n_women_40_74", pd.Series(0, index=_tidx)).fillna(0).to_numpy()
+
+
+def tracts_in_counties(county_pos) -> np.ndarray:
+    """Tract row positions for a set of county row positions."""
+    ids = _cidx[np.atleast_1d(county_pos)]
+    parts = [GROUP_IDX["tract_by_county"].get(g) for g in ids]
+    parts = [p for p in parts if p is not None]
+    return np.concatenate(parts) if parts else np.array([], dtype=int)
+
 
 with open(GEO_DIR / "states.json") as f:
     STATES: dict = json.load(f)
@@ -201,6 +226,10 @@ def load_mammo() -> dict | None:
                     + ("<br>" + "<br>".join(extra) if extra else ""))
     return {"lon": lon, "lat": lat, "text": text}
 
+@lru_cache(maxsize=1)
+def load_state_lines() -> dict | None:
+    return json.loads(STATE_LINES_PATH.read_text()) if STATE_LINES_PATH.exists() else None
+
 
 def place_name(level: str, gid: str) -> str:
     names = county_names() if level == "county" else tract_names()
@@ -219,24 +248,35 @@ def bbox_for_state(state_fips: str) -> list[float]:
 # ---------------------------------------------------------------------------
 # Variable helpers (catalog-driven)
 # ---------------------------------------------------------------------------
-def var_choices(level: str, numeric_only: bool = False) -> dict:
-    """Grouped choices for ui.input_select: {group: {id: label}}."""
+def _grouped(entries) -> dict:
     groups: dict[str, dict] = {}
-    for d in CATALOG[level]:
-        if numeric_only and d["type"] == "nominal":
-            continue
+    for d in entries:
         groups.setdefault(d["group"], {})[d["id"]] = d["label"]
     ordered = {g: groups[g] for g in GROUP_ORDER if g in groups}
     ordered.update({g: c for g, c in groups.items() if g not in ordered})
     return ordered
 
 
+def var_choices(level: str, page_key: str) -> dict:
+    """Dropdown choices for a page: entries whose 'pages' list contains page_key."""
+    return _grouped(d for d in CATALOG[level] if page_key in d.get("pages", []))
+
+
+def scatter_choices(level: str) -> dict:
+    """Any stored numeric variable (not class / not computed / not ranking-dependent)."""
+    return _grouped(d for d in CATALOG[level]
+                    if d["type"] != "nominal" and not d.get("dynamic") and not d.get("by_scale"))
+
+
 def valid(level: str, var: str | None, key: str) -> str:
-    """Return var if it exists at this level, else the catalog default."""
-    if var in VARMETA[level]:
+    """var if it is valid for this level and slot ('pa', 'b', 'x', 'y'), else the default."""
+    ok = (scatter_choices if key in ("x", "y") else
+          (lambda lv: var_choices(lv, key)))(level)
+    allowed = {i for g in ok.values() for i in g}
+    if var in allowed:
         return var
-    d = META.get("defaults", {}).get(level, {}).get(key)
-    return d if d in VARMETA[level] else CATALOG[level][0]["id"]
+    d = META["defaults"][level].get(key)
+    return d if d in allowed else next(iter(allowed))
 
 
 def short_label(level: str, var: str) -> str:
@@ -245,20 +285,16 @@ def short_label(level: str, var: str) -> str:
 
 
 def table_vars(level: str, var: str) -> list[str]:
-    """Rows listed in the info boxes when `var` is selected.
-
-    Uses the catalog's explicit "table" list when present (e.g. the four barrier
-    tertiles + barrier score); otherwise variables of the same group and format.
-    """
     m = VARMETA[level][var]
     if m.get("table"):
         ids = [v for v in m["table"] if v in VARMETA[level]]
     else:
-        ids = [d["id"] for d in CATALOG[level] if d["group"] == m["group"] and d["fmt"] == m["fmt"]]
-        if len(ids) < 3:
-            ids = [d["id"] for d in CATALOG[level] if d["group"] == m["group"]]
+        ids = [d["id"] for d in CATALOG[level] if d["group"] == m["group"]
+               and d["fmt"] == m["fmt"] and not d.get("dynamic") and not d.get("by_scale")]
     if var not in ids:
         ids = [var] + ids
+    if var in ids[MAX_TABLE_ROWS:]:                 # keep the selected variable visible
+        ids = [var] + [i for i in ids if i != var]
     return ids[:MAX_TABLE_ROWS]
 
 
@@ -267,15 +303,6 @@ def fmt_value(m: dict, v) -> str:
         return "—"
     if m["type"] == "nominal":
         return str(v)
-    f = m["fmt"]
-    if m["type"] == "ordinal":
-        vals, labels = m["levels"]["values"], m["levels"]["labels"]
-        if float(v).is_integer() and int(v) in vals:
-            return labels[vals.index(int(v))]
-        lo, hi = int(np.floor(v)), int(np.ceil(v))   # median between two levels
-        if lo in vals and hi in vals:
-            return f"{labels[vals.index(lo)]}–{labels[vals.index(hi)]}"
-        return f"{v:.1f}"
     return {
         "pct": f"{v:,.1f}%",
         "pctl": f"{v:,.0f}",
@@ -283,46 +310,8 @@ def fmt_value(m: dict, v) -> str:
         "count": f"{v:,.0f}",
         "count1": f"{v:,.1f}",
         "index": f"{v:+.3f}",
-        "score": f"{v:,.1f}" if not float(v).is_integer() else f"{v:,.0f}",
-    }.get(f, f"{v:,.2f}")
-
-
-def pct_top(m: dict, s: pd.Series) -> float | None:
-    """% of non-missing values in the top ordinal level (e.g. % High tertile)."""
-    s = s.dropna()
-    if not len(s):
-        return None
-    return float((s == m["levels"]["values"][-1]).mean() * 100)
-
-
-def summarize(level: str, rows: pd.DataFrame, var: str) -> dict:
-    """Group summary: median for numeric/ordinal, mode + share for nominal."""
-    m = VARMETA[level][var]
-    s = rows[var]
-    if m["type"] == "nominal":
-        vc = s.dropna().value_counts()
-        n = int(vc.sum())
-        if not n:
-            return {"text": "—", "n": 0, "dist": None}
-        top = vc.index[0]
-        return {"text": str(top), "share": vc.iloc[0] / n * 100, "n": n, "dist": vc}
-    med = s.median()
-    out = {"text": fmt_value(m, med), "value": med, "n": int(s.notna().sum())}
-    if m["type"] == "ordinal":
-        out["pct_top"] = pct_top(m, s)
-    return out
-
-
-def cell_text(level: str, rows: pd.DataFrame | pd.Series, var: str, single: bool) -> str:
-    m = VARMETA[level][var]
-    if single:
-        return fmt_value(m, rows.get(var))
-    s = summarize(level, rows, var)
-    if m["type"] == "nominal" and s["n"]:
-        return f"{s['text']} ({s['share']:.0f}%)"
-    if m["type"] == "ordinal" and s.get("pct_top") is not None:
-        return f"{s['pct_top']:.0f}% {m['levels']['labels'][-1]}"
-    return s["text"]
+        "mi": f"{v:,.1f} mi",
+    }.get(m["fmt"], f"{v:,.2f}")
 
 
 def discrete_scale(colors: list[str]) -> list:
@@ -337,6 +326,20 @@ def _fig_payload(fig: go.Figure) -> dict:
     return json.loads(fig.to_json())
 
 
+CLASS_LABELS = np.array([None] + CLASS_LEVELS, dtype=object)
+
+
+def code_labels(codes: np.ndarray) -> np.ndarray:
+    return CLASS_LABELS[np.where(np.isnan(codes), 0, codes).astype(int)]
+
+
+def default_codes(measure: str | None = None) -> np.ndarray:
+    d, t = CUT_DEF, DF["tract"]
+    m = measure or d["measure"]
+    return classify_at(t[f"lvl_{m}"], t[f"lvl_access_{d['scale']}"],
+                       t[f"lvl_barriers_{d['scale']}"], d["burden"], d["access"], d["barriers"])
+
+
 # ---------------------------------------------------------------------------
 # Browser-side bridge
 # ---------------------------------------------------------------------------
@@ -348,7 +351,7 @@ BRIDGE_JS = """
 
   function watchResize(el) {
     if (el._cspmRO) return;
-    el._cspmRO = new ResizeObserver(() => Plotly.Plots.resize(el));
+    el._cspmRO = new ResizeObserver(() => { if (el.offsetParent) Plotly.Plots.resize(el); });
     el._cspmRO.observe(el);
   }
   function isFloating(el) {
@@ -387,26 +390,33 @@ BRIDGE_JS = """
   }
 
   // ---- Map ----
-  // 1) All map messages run one after another (no overlapping draws).
-  // 2) Each one waits until the basemap style has loaded before touching layers.
-  // 3) The click listener is re-attached after every draw, even if a draw failed.
+  // Messages run one after another; each waits for the basemap style; the click
+  // listener is re-attached after every draw.
   let mapQueue = Promise.resolve();
   function enqueue(fn) {
     mapQueue = mapQueue.then(fn).catch((err) => console.error("[map]", err));
   }
-
-  // Resolves when MapLibre has finished loading the style (or after a timeout).
   function mapReady(el, timeoutMs = 8000) {
     const sub = el && el._fullLayout && el._fullLayout.map && el._fullLayout.map._subplot;
     const m = sub && sub.map;
     if (!m || (m.isStyleLoaded && m.isStyleLoaded())) return Promise.resolve();
     return new Promise((resolve) => {
       const done = () => { clearTimeout(t); resolve(); };
-      const t = setTimeout(done, timeoutMs);      // don't hang if tiles are blocked
+      const t = setTimeout(done, timeoutMs);
       m.once("idle", done);
     });
   }
-
+  // Move a trace's MapLibre layers to the top of the map (above polygons and borders)
+  function bringToFront(el, index) {
+    const sub = el && el._fullLayout && el._fullLayout.map && el._fullLayout.map._subplot;
+    const m = sub && sub.map;
+    const tr = el && el._fullData && el._fullData[index];
+    if (!m || !tr || !m.getStyle) return;
+    const prefix = "plotly-trace-layer-" + tr.uid;
+    m.getStyle().layers
+      .filter((l) => l.id.startsWith(prefix))
+      .forEach((l) => m.moveLayer(l.id));   // no beforeId = move to the very top
+  }
   function bindClick(el) {
     if (!el.on) return;
     if (el.removeAllListeners) el.removeAllListeners("plotly_click");
@@ -418,69 +428,107 @@ BRIDGE_JS = """
                           { priority: "event" });
     });
   }
-
   function drawMap(el, fig) {
     return Plotly.react(el, fig.data, fig.layout, Object.assign({ scrollZoom: true }, CFG));
   }
-
   Shiny.addCustomMessageHandler("draw_map", function (msg) {
     enqueue(async function () {
       const el = document.getElementById("screen_map");
       const fig = msg.fig;
       if (msg.bbox && fig.layout.map) fig.layout.map = fitView(fig.layout.map, msg.bbox, el);
-      await mapReady(el);                          // previous style finished loading
+      await mapReady(el);
+      if (el.data && el.data.length > 2) bringToFront(el, 2);
       try {
         await drawMap(el, fig);
-      } catch (err) {                              // style still loading: wait, then retry once
+      } catch (err) {
         console.warn("[map] draw retry:", err.message);
         await mapReady(el);
+        if (el.data && el.data.length > 2) bringToFront(el, 2);
         await drawMap(el, fig);
       } finally {
         watchResize(el);
-        bindClick(el);                             // always re-attach, even after an error
+        bindClick(el);
       }
-      await mapReady(el);                          // let later restyles see a loaded style
+      await mapReady(el);
+      if (el.data && el.data.length > 2) bringToFront(el, 2);
     });
   });
-
   Shiny.addCustomMessageHandler("highlight", function (msg) {
     enqueue(async function () {
       const el = document.getElementById("screen_map");
       if (!el || !el.data || el.data.length < 2) return;
       const cur = el.data[1].locations || [];
-      if (!cur.length && !msg.locations.length) return;   // nothing to change (initial load)
+      if (!cur.length && !msg.locations.length) return;
       await mapReady(el);
       await Plotly.restyle(el, { geojson: [msg.geojson], locations: [msg.locations], z: [msg.z] }, [1]);
     });
   });
-
-  Shiny.addCustomMessageHandler("toggle_trace", function (msg) {
+  Shiny.addCustomMessageHandler("set_mammo", function (msg) {
     enqueue(async function () {
       const el = document.getElementById("screen_map");
       if (!el || !el.data || el.data.length <= msg.index) return;
       await mapReady(el);
-      await Plotly.restyle(el, { visible: msg.visible }, [msg.index]);
+      await Plotly.restyle(el, { lon: [msg.lon], lat: [msg.lat], text: [msg.text] }, [msg.index]);
+      bringToFront(el, msg.index);
+      await mapReady(el);
+      bringToFront(el, msg.index);   // again after the map settles, in case layers were re-added
     });
   });
 
-  // ---- Charts ----
+  // ---- Overlay charts ----
   Shiny.addCustomMessageHandler("draw_chart", function (msg) {
     const el = document.getElementById(msg.id);
     if (!el) return;
     Plotly.react(el, msg.fig.data, msg.fig.layout, CFG).then(() => watchResize(el));
   });
 
-  // ---- Collapsible control panel ----
+  // ---- Collapsible control panel / minimizable overlay charts ----
   document.addEventListener("click", function (ev) {
     if (ev.target.closest(".panel-toggle")) {
       document.getElementById("hero").classList.toggle("panel-collapsed");
     }
+    if (ev.target.closest(".clear-sel")) {
+      Shiny.setInputValue("clear_selection", Date.now(), { priority: "event" });
+    }
+    const t = ev.target.closest(".ov-toggle");
+    if (t) {
+      const card = t.closest(".overlay-chart");
+      card.classList.toggle("min");
+      t.textContent = card.classList.contains("min") ? "+" : "–";
+      const plot = card.querySelector(".ov-plot");
+      if (plot && !card.classList.contains("min")) setTimeout(() => Plotly.Plots.resize(plot), 50);
+    }
   });
+  // Esc clears the selected polygon (ignored while typing in an input)
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") return;
+    const tag = (ev.target.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea") return;
+    Shiny.setInputValue("clear_selection", Date.now(), { priority: "event" });
+  });
+    // ---- Map-page layout: exact navbar height + no space below the map ----
+  const MAP_PAGES = ["map", "barriers"];
+  function syncLayout(page) {
+    const nav = document.querySelector(".navbar");
+    if (nav) document.documentElement.style.setProperty("--titlebar-h", nav.offsetHeight + "px");
+    if (page === undefined) {
+      const a = document.querySelector(".navbar .nav-link.active");
+      page = a ? a.getAttribute("data-value") : "";
+    }
+    document.body.classList.toggle("map-page", MAP_PAGES.includes(page));
+    const el = document.getElementById("screen_map");
+    if (el && el.data && MAP_PAGES.includes(page)) Plotly.Plots.resize(el);
+  }
+  $(document).on("shiny:inputchanged", function (e) {
+    if (e.name === "page") setTimeout(() => syncLayout(e.value), 0);
+  });
+  $(document).on("shiny:connected", () => syncLayout());
+  window.addEventListener("resize", () => syncLayout());
 })();
 """
 
 APP_CSS = """
-:root { --titlebar-h: 56px; --gap: 16px; --panel-w: 300px; }
+:root { --titlebar-h: 56px; --gap: 14px; --panel-w: 300px; --chart-w: 540px; --chart-h: 400px; }
 body { background: #f4f5f7; overflow-x: hidden; }
 
 /* ---- Navigation bar ---- */
@@ -493,33 +541,65 @@ body { background: #f4f5f7; overflow-x: hidden; }
 .nav-meta .qa-flag { font-size: 0.75rem; font-weight: 500; color: #8a1c1c; background: #fde2e1;
                      border-radius: 999px; padding: 2px 10px; margin-left: 6px; }
 .tab-content > .tab-pane { padding: 0; }
-body.bslib-page-navbar > .container-fluid { padding-left: 0; padding-right: 0; }  /* full-bleed map */
+body.bslib-page-navbar > .container-fluid { padding-left: 0; padding-right: 0; }
 
+/* ---- Map page frame ---- */
 .hero { position: relative; height: calc(100vh - var(--titlebar-h)); min-height: 640px; overflow: hidden; }
 .map-bg { position: absolute; inset: 0; }
-
 .glass {
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(255, 255, 255, 0.88);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: 14px; box-shadow: 0 8px 28px rgba(20, 30, 50, 0.18);
 }
+
+/* ---- Left panel ---- */
 .float-panel {
   position: absolute; z-index: 20; top: var(--gap); left: var(--gap);
   width: var(--panel-w); max-height: calc(100% - 2 * var(--gap));
-  overflow-y: auto; padding: 12px 18px 14px;
+  overflow-y: auto; padding: 12px 16px 14px;
   transition: transform 0.25s ease, opacity 0.25s ease;
 }
-.float-panel .form-group, .float-panel .shiny-input-container { margin-bottom: 0.6rem; width: 100%; }
-.float-panel label { font-size: 0.85rem; margin-bottom: 0.2rem; }
-.float-panel .form-select { font-size: 0.88rem; padding-top: 0.3rem; padding-bottom: 0.3rem; }
-.float-panel hr { margin: 0.6rem 0; }
-.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
-.sb-head { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em;
-           color: #6b7280; margin: 0.2rem 0 0.4rem; }
-.panel-note { font-size: 0.76rem; color: #4b5563; }
+.float-panel .form-group, .float-panel .shiny-input-container { margin-bottom: 0.55rem; width: 100%; }
+.float-panel label { font-size: 0.82rem; margin-bottom: 0.2rem; }
+.float-panel .form-select { font-size: 0.86rem; padding-top: 0.28rem; padding-bottom: 0.28rem; }
+.float-panel hr { margin: 0.55rem 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+.sb-head { font-weight: 600; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em;
+           color: #6b7280; margin: 0.15rem 0 0.4rem; }
+.sb-head-row { display: flex; justify-content: space-between; align-items: baseline; }
+.sb-head-row a { font-size: 0.75rem; }
+.panel-note { font-size: 0.74rem; color: #4b5563; }
 .panel-note p { margin-bottom: 0.3rem; }
-.var-desc { font-size: 0.76rem; color: #4b5563; margin: -0.3rem 0 0.5rem; }
+.var-desc { font-size: 0.74rem; color: #4b5563; margin: -0.3rem 0 0.45rem; }
+.cut-summary { font-size: 0.76rem; color: #374151; background: rgba(178, 24, 43, 0.07);
+               border-radius: 8px; padding: 6px 9px; margin-top: 2px; }
+.cut-summary b { color: #8a1c1c; }
+
+/* Segmented "selection bars" (inline radio buttons: label.radio-inline > input + span) */
+.seg .shiny-input-container { margin-bottom: 0.45rem; }
+.seg .shiny-options-group { display: flex !important; flex-wrap: nowrap; gap: 0 !important;
+                            border: 1px solid #cfd4dc; border-radius: 8px;
+                            overflow: hidden; background: #fff; }
+.seg label.radio-inline { display: flex; align-items: stretch; flex: 1 1 auto;
+                          margin: 0 !important; padding: 0 !important; position: relative;
+                          cursor: pointer; border-left: 1px solid #cfd4dc; background: #fff; }
+.seg label.radio-inline:first-child { border-left: none; }
+.seg label.radio-inline input { position: absolute; opacity: 0; width: 1px; height: 1px;
+                                margin: 0; pointer-events: none; }
+.seg label.radio-inline span { flex: 1 1 auto; display: flex; align-items: center;
+                               justify-content: center; margin: 0; padding: 4px 6px;
+                               font-size: 0.78rem; line-height: 1.2; text-align: center;
+                               white-space: normal; color: #374151; user-select: none; }
+
+/* Selected: color the whole segment, not just the text */
+.seg label.radio-inline:has(input:checked) { background: #B2182B; }
+.seg label.radio-inline:has(input:checked) span { color: #fff; font-weight: 600; }
+
+/* Hover / keyboard focus */
+.seg label.radio-inline:not(:has(input:checked)):hover { background: #f3f4f6; }
+.seg label.radio-inline:has(input:checked):hover { background: #9b1525; }
+.seg label.radio-inline:has(input:focus-visible) { outline: 2px solid #1F6FB2; outline-offset: -2px; }
 
 .panel-toggle { border: none; background: transparent; font-size: 1.1rem; line-height: 1;
                 padding: 4px 8px; border-radius: 8px; color: #374151; cursor: pointer; }
@@ -529,62 +609,72 @@ body.bslib-page-navbar > .container-fluid { padding-left: 0; padding-right: 0; }
 .hero.panel-collapsed .float-panel { transform: translateX(calc(-100% - 2 * var(--gap))); opacity: 0; pointer-events: none; }
 .hero.panel-collapsed .panel-open-btn { display: block; }
 
+/* ---- Info boxes (compact) ---- */
 .float-boxes {
   position: absolute; z-index: 15; top: var(--gap); right: var(--gap);
   left: calc(var(--panel-w) + 2 * var(--gap));
   pointer-events: none; transition: left 0.25s ease;
 }
 .hero.panel-collapsed .float-boxes { left: calc(var(--gap) + 130px); }
-.float-boxes .bslib-grid { gap: 12px; }
+.float-boxes .bslib-grid { gap: 10px; }
 .float-boxes .bslib-value-box {
   pointer-events: auto; margin-bottom: 0; height: 100%;
-  border: none; border-radius: 14px; box-shadow: 0 8px 24px rgba(20, 30, 50, 0.20); opacity: 0.96;
+  border: none; border-radius: 12px; box-shadow: 0 6px 20px rgba(20, 30, 50, 0.20); opacity: 0.96;
 }
 #box1, #box2, #box3, #box4 { height: 100%; }
-.float-boxes .value-box-area { padding: 0.7rem 1rem !important; }
-.float-boxes .value-box-title { font-size: 0.85rem; margin-bottom: 0.1rem; }
-.bslib-value-box .value-box-value { font-size: 1.55rem; line-height: 1.15; margin-bottom: 0.15rem; }
-.bslib-value-box .value-box-value .txt { font-size: 1.05rem; font-weight: 600; line-height: 1.25; display: block; }
-.vb-sub   { font-size: 0.72rem; opacity: 0.9; margin-bottom: 0.15rem; line-height: 1.25; }
-.vb-table { font-size: 0.70rem; width: 100%; }
+.float-boxes .value-box-area { padding: 0.45rem 0.8rem 0.5rem !important; }
+.float-boxes .value-box-title { font-size: 0.78rem; margin-bottom: 0; }
+.bslib-value-box .value-box-value { font-size: 1.3rem; line-height: 1.12; margin-bottom: 0.1rem; }
+.bslib-value-box .value-box-value .txt { font-size: 0.98rem; font-weight: 600; line-height: 1.2; display: block; }
+.vb-sub   { font-size: 0.68rem; opacity: 0.9; margin-bottom: 0.1rem; line-height: 1.2;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vb-table { font-size: 0.67rem; width: 100%; line-height: 1.25; }
 .vb-table td { padding: 0 0.25rem 0 0; vertical-align: top; }
 .vb-table td.num { text-align: right; white-space: nowrap; }
 .vb-table tr.sel { font-weight: 700; }
-.vb-table tr.total td { border-top: 1px solid currentColor; padding-top: 1px; }
-.chip { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px;
+.vb-table .ok { font-weight: 700; }
+.chip { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px;
         border: 1px solid rgba(0,0,0,0.15); }
 
+/* ---- Overlay chart (lower-left of the map) ---- */
+.overlay-chart {
+  position: absolute; z-index: 16; bottom: var(--gap);
+  left: calc(var(--panel-w) + 2 * var(--gap));
+  width: min(var(--chart-w), calc(100% - var(--panel-w) - 4 * var(--gap) - 150px));
+  height: var(--chart-h); padding: 8px 10px 4px;
+  display: flex; flex-direction: column; transition: left 0.25s ease;
+}
+.hero.panel-collapsed .overlay-chart { left: var(--gap); }
+.overlay-chart.min { height: auto; }
+.overlay-chart.min .ov-plot { display: none; }
+.ov-head { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+           font-size: 0.8rem; font-weight: 600; color: #374151; padding: 0 2px 2px; }
+.ov-head .ov-toggle { border: 1px solid #d1d5db; background: #fff; color: #374151;
+                      font-size: 1.35rem; font-weight: 600; line-height: 1;
+                      width: 30px; height: 30px; flex: none; padding: 0;
+                      display: inline-flex; align-items: center; justify-content: center;
+                      border-radius: 8px; cursor: pointer; }
+.ov-head .ov-toggle:hover { background: #f3f4f6; border-color: #9ca3af; }
+.ov-plot { flex: 1 1 auto; min-height: 0; }
+
+/* Map toolbar: bottom-right, left of the color legend */
 @media (min-width: 992px) {
   #screen_map .modebar-container { top: auto !important; bottom: var(--gap);
-                                   right: auto !important; left: calc(var(--panel-w) + 2 * var(--gap)); }
+                                   left: auto !important; right: 150px !important; }
 }
-.scroll-hint {
-  position: absolute; z-index: 15; bottom: var(--gap); left: 50%; transform: translateX(-50%);
-  padding: 6px 14px; font-size: 0.82rem; color: #374151; text-decoration: none;
-}
-.scroll-hint:hover { color: #111827; }
 
-.charts-section { padding: 20px var(--gap) 28px; }
-.charts-section .card { border-radius: 14px; box-shadow: 0 2px 10px rgba(20, 30, 50, 0.08); }
-.card.bslib-full-screen .plot-host { height: 100% !important; }
-
+/* ---- Small screens: stack everything ---- */
 @media (max-width: 991.98px) {
   .hero { height: auto; min-height: 0; overflow: visible; display: flex; flex-direction: column; }
   .map-bg { position: relative; inset: auto; height: 65vh; order: 2; }
-  .float-panel, .float-boxes { position: static; width: auto; max-height: none; margin: var(--gap); }
+  .float-panel, .float-boxes, .overlay-chart { position: static; width: auto; max-height: none;
+                                               margin: var(--gap); }
   .float-panel { order: 1; }
   .float-boxes { order: 3; pointer-events: auto; }
-  .panel-toggle, .panel-open-btn, .scroll-hint { display: none !important; }
+  .overlay-chart { order: 4; height: 340px; }
+  .panel-toggle, .panel-open-btn { display: none !important; }
   .hero.panel-collapsed .float-panel { transform: none; opacity: 1; pointer-events: auto; }
 }
-
-/* ---- Section navigation ---- */
-html { scroll-behavior: smooth; }
-#hero, #charts { scroll-margin-top: var(--titlebar-h); }   /* don't hide under the sticky title bar */
-.charts-nav { display: flex; justify-content: center; margin: -4px 0 14px; }
-.nav-pill { display: inline-block; padding: 6px 14px; font-size: 0.82rem;
-            color: #374151; text-decoration: none; }
-.nav-pill:hover { color: #111827; }
 
 /* ---- Landing / methods pages ---- */
 .lp-wrap { max-width: 1080px; margin: 0 auto; padding: 36px 20px 56px; color: #1f2937; }
@@ -635,6 +725,24 @@ html { scroll-behavior: smooth; }
   .lp-table tr { padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
   .lp-table td { border: none; padding: 2px 16px; }
 }
+
+/* Clear-selection button in the "Selected" box */
+.vb-title-row { display: flex; justify-content: space-between; align-items: center;
+                gap: 6px; width: 100%; }
+.float-boxes .value-box-title:has(.vb-title-row) { width: 100%; }
+.clear-sel { border: none; background: rgba(255, 255, 255, 0.55); color: inherit;
+             font-size: 0.68rem; line-height: 1.4; padding: 1px 8px; border-radius: 999px;
+             cursor: pointer; white-space: nowrap; }
+.clear-sel:hover { background: rgba(255, 255, 255, 0.85); }
+.clear-sel:focus-visible { outline: 2px solid #1F6FB2; outline-offset: 1px; }
+
+/* Map pages: the map fills the window exactly; hide the empty tab content below it */
+body.map-page .tab-content { display: none; }
+body.map-page { padding-bottom: 0 !important; margin-bottom: 0 !important; }
+@media (min-width: 992px) {
+  body.map-page { overflow-y: hidden; }   /* no stray scrollbar from a pixel of overflow */
+}
+.hero { min-height: 480px; }              /* was 640px: let short laptop screens fit exactly */
 """
 
 
@@ -642,7 +750,17 @@ html { scroll-behavior: smooth; }
 # UI
 # ---------------------------------------------------------------------------
 DEFAULT_LEVEL = "county"
-QA_FAILED = META.get("qa_failed") or []
+CUT_CHOICES = {c: f"{c}th" for c in CUT_OPTS}
+
+
+def seg(id_, label, choices, selected):
+    """A segmented 'selection bar' (inline radio buttons styled as a button group)."""
+    return ui.div(ui.input_radio_buttons(id_, label, choices, selected=selected, inline=True),
+                  class_="seg")
+
+
+on_pa = "input.page === 'map'"
+on_b = "input.page === 'barriers'"
 
 control_panel = ui.div(
     ui.div(
@@ -656,53 +774,67 @@ control_panel = ui.div(
         "input.level === 'tract'",
         ui.input_select("state", "State (tract view)", STATE_CHOICES, selected=DEFAULT_STATE),
     ),
-    ui.input_select("var", "Variable", var_choices(DEFAULT_LEVEL),
-                    selected=valid(DEFAULT_LEVEL, None, "var")),
+    ui.panel_conditional(on_pa, ui.input_select(
+        "var_pa", "Variable (Priority & Access)", var_choices(DEFAULT_LEVEL, "pa"),
+        selected=valid(DEFAULT_LEVEL, None, "pa"))),
+    ui.panel_conditional(on_b, ui.input_select(
+        "var_b", "Variable", var_choices(DEFAULT_LEVEL, "b"),
+        selected=valid(DEFAULT_LEVEL, None, "b"))),
     ui.output_ui("var_desc"),
     (ui.input_checkbox("show_mammo", "Show mammography locations", value=False)
      if MAMMO_PATH.exists() else None),
-    ui.hr(),
-    ui.div("Scatterplot", class_="sb-head"),
-    ui.input_select("sx", "X-axis variable", var_choices(DEFAULT_LEVEL, numeric_only=True),
-                    selected=valid(DEFAULT_LEVEL, None, "x")),
-    ui.input_select("sy", "Y-axis variable", var_choices(DEFAULT_LEVEL, numeric_only=True),
-                    selected=valid(DEFAULT_LEVEL, None, "y")),
-    ui.input_checkbox("trend", "Show trend line", value=True),
+    # ---- Page 2: cutoff options ----
+    ui.panel_conditional(
+        on_pa,
+        ui.hr(),
+        ui.div(ui.div("Cutoff options", class_="sb-head"),
+               ui.input_action_link("cut_reset", "Reset to defaults"), class_="sb-head-row"),
+        seg("measure", "Burden measure", MEASURES, CUT_DEF["measure"]),
+        seg("scale", "Access & barrier ranking", SCALES, CUT_DEF["scale"]),
+        seg("cut_b", "Burden cutoff (county pctl)", CUT_CHOICES, str(CUT_DEF["burden"])),
+        seg("cut_a", "Access cutoff (distance pctl)", CUT_CHOICES, str(CUT_DEF["access"])),
+        seg("cut_r", "Barrier cutoff (barrier pctl)", CUT_CHOICES, str(CUT_DEF["barriers"])),
+        ui.output_ui("cut_summary"),
+    ),
+    # ---- Page 3: scatterplot axes ----
+    ui.panel_conditional(
+        on_b,
+        ui.hr(),
+        ui.div("Scatterplot", class_="sb-head"),
+        ui.input_select("sx", "X-axis variable", scatter_choices(DEFAULT_LEVEL),
+                        selected=valid(DEFAULT_LEVEL, None, "x")),
+        ui.input_select("sy", "Y-axis variable", scatter_choices(DEFAULT_LEVEL),
+                        selected=valid(DEFAULT_LEVEL, None, "y")),
+        ui.input_checkbox("trend", "Show trend line", value=True),
+    ),
     ui.hr(),
     ui.div(
-        ui.markdown(
-            "Click a polygon to update the boxes and charts. Percentiles: 0 = lowest, "
-            "100 = highest; higher tertile = **more need**. "
-            "Burden is county-level context, the same for every tract in a county."
-        ),
-        ui.markdown(
-            "County view: tract indicators are shown as the **median tract** in the county; "
-            "priority and barrier tertiles are the **% of tracts in the High group**."
-        ),
+        ui.markdown("Click a polygon to update the boxes and chart. Percentiles: 0 = lowest, "
+                    "100 = highest; higher = **more need**. Burden is county-level context."),
+        ui.panel_conditional("input.level === 'county'", ui.markdown(
+            "County view: tract indicators are the **median tract**; priority is the "
+            "**% of tracts classed High priority** at the selected cutoffs.")),
         class_="panel-note",
     ),
     id="ctrl_panel",
     class_="float-panel glass",
 )
 
-# ---- Landing page inputs: class legend (same colors as the map) and example headline numbers ----
-_cls = next(d for d in CATALOG["tract"] if d["id"] == "class_aair")
-CLASS_LEGEND = list(zip(_cls["levels"], _cls["colors"]))
+
+def overlay(cond: str, title_id: str, plot_id: str, card_id: str, minimized: bool = False):
+    return ui.panel_conditional(
+        cond,
+        ui.div(
+            ui.div(ui.output_text(title_id, inline=True),
+                   ui.tags.button("+" if minimized else "–", class_="ov-toggle",
+                                  title="Expand / minimize", type="button"),
+                   class_="ov-head"),
+            ui.div(id=plot_id, class_="ov-plot"),
+            id=card_id, class_="overlay-chart glass" + (" min" if minimized else ""),
+        ),
+    )
 
 
-def landing_stats() -> list[dict]:
-    """Example headline numbers from the default priority view (incidence-rate classes)."""
-    t = DF["tract"]
-    hp = t[t["class_aair"] == "High priority"]
-    return [
-        {"value": f"{len(hp):,}", "label": "census tracts in the High priority class"},
-        {"value": f"{hp['n_women_40_74'].sum() / 1e6:,.1f} million",
-         "label": "women aged 40–74 living in those tracts"},
-        {"value": f"{hp['state'].nunique()}", "label": "states (and DC) with at least one"},
-    ]
-
-
-# Priority & Access and Barriers both show this block until the pages are split.
 map_block = ui.panel_conditional(
     "input.page === 'map' || input.page === 'barriers'",
     ui.div(
@@ -719,37 +851,35 @@ map_block = ui.panel_conditional(
             id="float_boxes",
             class_="float-boxes",
         ),
-        ui.tags.a("▼  Profile & comparison", href="#charts", class_="scroll-hint glass"),
+        overlay(on_pa, "profile_title", "profile", "ov_profile"), #add minimized=True to hide Need Profile on page load.
+        overlay(on_b, "scatter_title", "scatter", "ov_scatter"),
         id="hero",
         class_="hero",
     ),
-    ui.div(
-        ui.div(ui.tags.a("▲  Map & distribution", href="#hero", class_="nav-pill glass"),
-               class_="charts-nav"),
-        ui.layout_columns(
-            ui.card(
-                ui.card_header(ui.output_text("profile_title", inline=True)),
-                ui.div(id="profile", class_="plot-host", style="height:400px;"),
-                full_screen=True,
-            ),
-            ui.card(
-                ui.card_header(ui.output_text("scatter_title", inline=True)),
-                ui.div(id="scatter", class_="plot-host", style="height:400px;"),
-                full_screen=True,
-            ),
-            col_widths={"sm": [12, 12], "lg": [6, 6]},
-            fill=False,
-        ),
-        id="charts",
-        class_="charts-section",
-    ),
 )
+
+# ---- Landing page inputs: class legend (same colors as the map) and headline numbers ----
+CLASS_LEGEND = list(zip(CLASS_LEVELS, CLASS_COLORS))
+
+
+def landing_stats() -> list[dict]:
+    """Headline numbers at the default cutoffs (incidence-rate burden, urban/rural ranking)."""
+    t = DF["tract"]
+    hp = default_codes() == 1
+    return [
+        {"value": f"{int(hp.sum()):,}", "label": "census tracts in the High priority class"},
+        {"value": f"{TRACT_WOMEN[hp].sum() / 1e6:,.1f} million",
+         "label": "women aged 40–74 living in those tracts"},
+        {"value": f"{t.loc[hp, 'state'].nunique()}" if "state" in t else "—",
+         "label": "states (and DC) with at least one"},
+    ]
+
 
 app_ui = ui.page_navbar(
     ui.nav_panel("Home",
                  landing_ui(CLASS_LEGEND, landing_stats(),
-                            "Example figures for the app's default priority view. They will "
-                            "change as the classification method is finalized."),
+                            "Figures at the default cutoffs (burden 90th, access 67th, barriers "
+                            "67th percentile; urban/rural ranking; incidence-rate burden)."),
                  value="home"),
     ui.nav_panel("Priority & Access", value="map"),
     ui.nav_panel("Barriers", value="barriers"),
@@ -785,13 +915,13 @@ def server(input, output, session):
     selected = reactive.value(None)  # GEOID of clicked polygon
 
     # ---- Navigation ----
-    # The map and charts are only drawn while a map page is showing. Drawing into a hidden
-    # element gives the map the wrong size, so each draw effect waits on map_visible.
-    map_visible = reactive.value(False)
+    @reactive.calc
+    def page():
+        return input.page()
 
-    @reactive.effect
-    def _track_page():
-        map_visible.set(input.page() in MAP_PAGES)
+    @reactive.calc
+    def map_visible():
+        return page() in MAP_PAGES
 
     @reactive.effect
     @reactive.event(input.go_map)
@@ -803,9 +933,70 @@ def server(input, output, session):
     def _go_methods():
         ui.update_navset("page", selected="methods")
 
+    # ---- Cutoffs and classification ----
     @reactive.calc
-    def cur_var():
-        return valid(input.level(), input.var(), "var")
+    def cut() -> dict:
+        return {"measure": input.measure(), "scale": input.scale(),
+                "b": int(input.cut_b()), "a": int(input.cut_a()), "r": int(input.cut_r())}
+
+    @reactive.effect
+    @reactive.event(input.cut_reset)
+    def _reset_cutoffs():
+        ui.update_radio_buttons("measure", selected=CUT_DEF["measure"])
+        ui.update_radio_buttons("scale", selected=CUT_DEF["scale"])
+        ui.update_radio_buttons("cut_b", selected=str(CUT_DEF["burden"]))
+        ui.update_radio_buttons("cut_a", selected=str(CUT_DEF["access"]))
+        ui.update_radio_buttons("cut_r", selected=str(CUT_DEF["barriers"]))
+
+    @reactive.calc
+    def class_codes() -> np.ndarray:
+        c, t = cut(), DF["tract"]
+        return classify_at(t[f"lvl_{c['measure']}"], t[f"lvl_access_{c['scale']}"],
+                           t[f"lvl_barriers_{c['scale']}"], c["b"], c["a"], c["r"])
+
+    @reactive.calc
+    def class_series() -> pd.Series:
+        return pd.Series(code_labels(class_codes()), index=_tidx)
+
+    @reactive.calc
+    def county_pct_high() -> pd.Series:
+        codes = class_codes()
+        ok = ~np.isnan(codes) & (TRACT_CTY_POS >= 0)
+        n = np.bincount(TRACT_CTY_POS[ok], minlength=len(_cidx))
+        hp = np.bincount(TRACT_CTY_POS[ok], weights=(codes[ok] == 1), minlength=len(_cidx))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            pct = np.where(n > 0, hp / n * 100, np.nan)
+        return pd.Series(pct, index=_cidx)
+
+    def column(level: str, m: dict) -> str:
+        return m["by_scale"][cut()["scale"]] if m.get("by_scale") else m["id"]
+
+    def series(level: str, var: str) -> pd.Series:
+        """Full column for a variable, resolving computed and ranking-dependent ones."""
+        if var == "priority_class":
+            return class_series()
+        if var == "pct_high_priority":
+            return county_pct_high()
+        return DF[level][column(level, VARMETA[level][var])]
+
+    @render.ui
+    def cut_summary():
+        codes = class_codes()
+        hp = codes == 1
+        n_cty = len(np.unique(TRACT_CTY_POS[hp & (TRACT_CTY_POS >= 0)]))
+        return ui.div(
+            ui.tags.b(f"{int(hp.sum()):,}"), " High priority tracts · ",
+            ui.tags.b(f"{TRACT_WOMEN[hp].sum() / 1e6:,.2f}M"), " women 40–74 · ",
+            ui.tags.b(f"{n_cty:,}"), " counties (US)",
+            class_="cut-summary")
+
+    # ---- Variable selection ----
+    @reactive.calc
+    def cur_var() -> str:
+        level = input.level()
+        if page() == "barriers":
+            return valid(level, input.var_b(), "b")
+        return valid(level, input.var_pa(), "pa")
 
     @reactive.calc
     def cur_x():
@@ -820,10 +1011,11 @@ def server(input, output, session):
     def _swap_choices():
         level = input.level()
         with reactive.isolate():
-            v, x, y = input.var(), input.sx(), input.sy()
-        ui.update_select("var", choices=var_choices(level), selected=valid(level, v, "var"))
-        ui.update_select("sx", choices=var_choices(level, True), selected=valid(level, x, "x"))
-        ui.update_select("sy", choices=var_choices(level, True), selected=valid(level, y, "y"))
+            vp, vb, x, y = input.var_pa(), input.var_b(), input.sx(), input.sy()
+        ui.update_select("var_pa", choices=var_choices(level, "pa"), selected=valid(level, vp, "pa"))
+        ui.update_select("var_b", choices=var_choices(level, "b"), selected=valid(level, vb, "b"))
+        ui.update_select("sx", choices=scatter_choices(level), selected=valid(level, x, "x"))
+        ui.update_select("sy", choices=scatter_choices(level), selected=valid(level, y, "y"))
 
     @reactive.effect
     @reactive.event(input.level, input.state)
@@ -836,6 +1028,11 @@ def server(input, output, session):
         click = input.map_click()
         if click and click.get("geoid"):
             selected.set(str(click["geoid"]))
+
+    @reactive.effect
+    @reactive.event(input.clear_selection)
+    def _clear_selection():
+        selected.set(None)
 
     def _geo():
         if input.level() == "county":
@@ -856,7 +1053,7 @@ def server(input, output, session):
         return ui.div(m["description"], class_="var-desc") if m.get("description") else None
 
     # =======================================================================
-    # Comparison groups — rows for each box (single row for box 1)
+    # Comparison groups: row positions for each box
     # =======================================================================
     @reactive.calc
     def groups() -> list[dict]:
@@ -866,49 +1063,73 @@ def server(input, output, session):
         unit = "county" if level == "county" else "tract"
         units = "counties" if level == "county" else "tracts"
 
-        def g(title, sub=CLICK_HINT, legend="", rows=None, single=False):
-            return {"title": title, "sub": sub, "legend": legend, "rows": rows, "single": single}
-
-        def take(key, k):
-            idx = GROUP_IDX[key].get(k)
-            return data.iloc[idx] if idx is not None else None
+        def g(title, sub=CLICK_HINT, legend="", pos=None, single=False):
+            return {"title": title, "sub": sub, "legend": legend, "pos": pos, "single": single}
 
         g1 = g(f"Selected {unit}", legend=f"Selected {unit}", single=True)
         g2 = g(f"Adjacent {units}", legend=f"Adjacent {units}")
         if level == "county":
             g3 = g("State (all counties)", legend="State")
-            g4 = g("United States (all counties)", "All US counties", "US", data)
+            g4 = g("United States (all counties)", "All US counties", "US", np.arange(len(data)))
         else:
             st = input.state()
             g3 = g("County (all tracts)", legend="County")
             g4 = g("State (all tracts)", f"All tracts in {state_label(st)}",
-                   f"{state_label(st, short=True)}", take("tract_by_state", st))
-
+                   state_label(st, short=True), GROUP_IDX["tract_by_state"].get(st))
         if not gid:
             return [g1, g2, g3, g4]
 
         name = place_name(level, gid)
         if gid in data.index:
-            g1.update(sub=f"{name} (GEOID {gid})", legend=name, rows=data.loc[gid])
+            g1.update(sub=name, legend="Selected region", hover=name,
+                      pos=int(data.index.get_loc(gid)))
         else:
-            g1.update(sub=f"{name} (GEOID {gid}) — no data", legend=name)
+            g1.update(sub=f"{name} — no data", legend="Selected region", hover=name)
 
         nbrs = (load_county_neighbors() if level == "county"
                 else load_tract_neighbors(gid[:2])).get(gid, [])
-        nb = data.loc[data.index.intersection(nbrs)]
-        g2.update(sub=f"{len(nbrs)} adjacent {units} of {name}", rows=nb if len(nb) else None)
+        npos = data.index.get_indexer(nbrs)
+        npos = npos[npos >= 0]
+        g2.update(sub=f"{len(nbrs)} adjacent {units}", pos=npos if len(npos) else None)
 
         if level == "county":
             st = gid[:2]
-            g3.update(sub=f"All counties in {state_label(st)}",
-                      legend=state_label(st, short=True), rows=take("county_by_state", st))
+            g3.update(sub=f"All counties in {state_label(st)}", legend=state_label(st, short=True),
+                      pos=GROUP_IDX["county_by_state"].get(st))
         else:
             cty, st = gid[:5], gid[:2]
             g3.update(sub=f"All tracts in {place_name('county', cty)}",
-                      legend=place_name("county", cty), rows=take("tract_by_county", cty))
-            g4.update(sub=f"All tracts in {state_label(st)}",
-                      legend=state_label(st, short=True), rows=take("tract_by_state", st))
+                      legend=place_name("county", cty), pos=GROUP_IDX["tract_by_county"].get(cty))
+            g4.update(sub=f"All tracts in {state_label(st)}", legend=state_label(st, short=True),
+                      pos=GROUP_IDX["tract_by_state"].get(st))
         return [g1, g2, g3, g4]
+
+    def class_dist(codes: np.ndarray):
+        codes = codes[~np.isnan(codes)]
+        if not len(codes):
+            return None, 0
+        vc = pd.Series(codes.astype(int)).value_counts()
+        return vc, int(len(codes))
+
+    def summarize(level: str, var: str, pos, single: bool) -> dict:
+        """Value for one polygon (single) or a group summary."""
+        m = VARMETA[level][var]
+        if var == "pct_high_priority":                    # pooled over the tracts
+            codes = class_codes()[tracts_in_counties(pos)]
+            vc, n = class_dist(codes)
+            share = (vc.get(1, 0) / n * 100) if n else None
+            return {"text": fmt_value(m, share), "n": n, "kind": "pooled", "dist": vc}
+        s = series(level, var)
+        if single:
+            return {"text": fmt_value(m, s.iloc[pos]), "value": s.iloc[pos]}
+        sub = s.iloc[pos]
+        if m["type"] == "nominal":
+            vc = sub.dropna().value_counts()
+            n = int(vc.sum())
+            if not n:
+                return {"text": "—", "n": 0, "dist": None}
+            return {"text": str(vc.index[0]), "share": vc.iloc[0] / n * 100, "n": n, "dist": vc}
+        return {"text": fmt_value(m, sub.median()), "n": int(sub.notna().sum())}
 
     # =======================================================================
     # Map
@@ -924,23 +1145,26 @@ def server(input, output, session):
 
         ids = [f["properties"]["GEOID"] for f in gj["features"]]
         names = [f["properties"].get("NAME", f["properties"]["GEOID"]) for f in gj["features"]]
-        vals = DF[level][var].reindex(ids)
+        vals = series(level, var).reindex(ids)
         text = [fmt_value(m, v) for v in vals]
 
-        cb = dict(thickness=12, len=0.40, lenmode="fraction",
-                  x=0.995, xanchor="right", y=0.06, yanchor="bottom",
-                  bgcolor="rgba(255,255,255,0.85)", outlinewidth=0, xpad=10, ypad=10)
+        cb = dict(thickness=12, len=0.42, lenmode="fraction",
+                  x=0.995, xanchor="right", y=0.03, yanchor="bottom",
+                  bgcolor="rgba(255,255,255,0.88)", outlinewidth=0, xpad=10, ypad=8)
         title = m["label"].replace(" (", "<br>(", 1)
+        if var == "priority_class":
+            c = cut()
+            title = (f"Priority class<br><sub>{MEASURES[c['measure']]} · B{c['b']} "
+                     f"A{c['a']} R{c['r']} · {SCALES[c['scale']]}</sub>")
+        elif var == "pct_high_priority":
+            c = cut()
+            title = (f"% tracts High priority<br><sub>{MEASURES[c['measure']]} · B{c['b']} "
+                     f"A{c['a']} R{c['r']}</sub>")
 
-        if m["type"] in ("nominal", "ordinal"):
-            if m["type"] == "nominal":
-                labels = m["levels"]
-                pos = {lv: i for i, lv in enumerate(labels)}
-                z = [pos.get(v) if isinstance(v, str) else None for v in vals]
-            else:
-                lv, labels = m["levels"]["values"], m["levels"]["labels"]
-                z = [lv.index(int(v)) if pd.notna(v) and float(v).is_integer() and int(v) in lv
-                     else None for v in vals]
+        if m["type"] == "nominal":
+            labels = m["levels"]
+            posn = {lv: i for i, lv in enumerate(labels)}
+            z = [posn.get(v) if isinstance(v, str) else None for v in vals]
             k = len(labels)
             choro = dict(z=z, zmin=-0.5, zmax=k - 0.5, colorscale=discrete_scale(m["colors"]),
                          colorbar=dict(**cb, title=dict(text=title, side="top"),
@@ -948,47 +1172,53 @@ def server(input, output, session):
         else:
             z = [None if pd.isna(v) else float(v) for v in vals]
             choro = dict(z=z, colorscale=m.get("colorscale", "YlOrRd"),
-                         reversescale=bool(m.get("reverse")),
                          colorbar=dict(**cb, title=dict(text=title, side="top")))
-            if m["fmt"] == "pctl":
+            if m["fmt"] == "pctl" or var == "pct_high_priority":
                 choro.update(zmin=0, zmax=100)
             elif m["fmt"] == "index":
-                lim = float(np.nanmax(np.abs(DF[level][var]))) or 1.0
+                lim = float(np.nanmax(np.abs(series(level, var)))) or 1.0
                 choro.update(zmin=-lim, zmax=lim)
 
         with reactive.isolate():
             hl = _highlight_payload(feats, selected())
             show_mammo = bool(MAMMO_PATH.exists() and input.show_mammo())
 
-        fig = go.Figure(
-            data=[
-                go.Choroplethmap(
-                    geojson=gj, featureidkey="properties.GEOID", locations=ids,
-                    customdata=list(zip(names, text)),
-                    marker_line_width=0.25 if level == "county" else 0.35,
-                    marker_line_color="white", marker_opacity=0.85,
-                    hovertemplate="%{customdata[0]}<br>" + m["label"]
-                                  + ": <b>%{customdata[1]}</b><extra></extra>",
-                    **choro,
-                ),
-                go.Choroplethmap(
-                    geojson=hl["geojson"], featureidkey="properties.GEOID",
-                    locations=hl["locations"], z=hl["z"],
-                    colorscale=[[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0)"]],
-                    showscale=False, marker_line_width=3, marker_line_color="#0b3d91",
-                    hoverinfo="skip",
-                ),
-            ]
-        )
+        fig = go.Figure(data=[
+            go.Choroplethmap(
+                geojson=gj, featureidkey="properties.GEOID", locations=ids,
+                customdata=list(zip(names, text)),
+                marker_line_width=0.25 if level == "county" else 0.35,
+                marker_line_color="white", marker_opacity=0.85,
+                hovertemplate="%{customdata[0]}<br>" + m["label"]
+                              + ": <b>%{customdata[1]}</b><extra></extra>",
+                **choro,
+            ),
+            go.Choroplethmap(
+                geojson=hl["geojson"], featureidkey="properties.GEOID",
+                locations=hl["locations"], z=hl["z"],
+                colorscale=[[0, "rgba(0,0,0,0)"], [1, "rgba(0,0,0,0)"]],
+                showscale=False, marker_line_width=3, marker_line_color="#0b3d91",
+                hoverinfo="skip",
+            ),
+        ])
         mammo = load_mammo()
-        if mammo:  # trace index 2
+        if mammo:  # trace index 2: always visible so its layer is created (on top) at draw time
+            on = show_mammo
             fig.add_trace(go.Scattermap(
-                lon=mammo["lon"], lat=mammo["lat"], text=mammo["text"], mode="markers",
-                name="Mammography facility", marker=dict(size=7, color=MAMMO_COLOR, opacity=0.9),
-                hovertemplate="%{text}<extra></extra>", visible=show_mammo, showlegend=False,
+                lon=mammo["lon"] if on else [], lat=mammo["lat"] if on else [],
+                text=mammo["text"] if on else [],
+                mode="markers", name="Mammography facility", below="",
+                marker=dict(size=7, color=MAMMO_COLOR, opacity=0.9),
+                hovertemplate="%{text}<extra></extra>", showlegend=False,
             ))
         fig.update_layout(
-            map=dict(style=MAP_STYLE, center=dict(lat=38.5, lon=-96.5), zoom=3),
+                map=dict(
+                style=MAP_STYLE, center=dict(lat=38.5, lon=-96.5), zoom=3,
+                layers=([dict(sourcetype="geojson", source=load_state_lines(), type="line",
+                              color=STATE_LINE_COLOR, opacity=STATE_LINE_OPACITY,
+                              line=dict(width=STATE_LINE_WIDTH))]
+                        if load_state_lines() else []),
+            ),
             margin=dict(l=0, r=0, t=0, b=0), font=PLOT_FONT, paper_bgcolor="#e9ecef",
             uirevision=f"{level}-{state if level == 'tract' else 'us'}",
         )
@@ -1006,66 +1236,106 @@ def server(input, output, session):
         @reactive.effect
         @reactive.event(input.show_mammo, ignore_init=True)
         async def _toggle_mammo():
-            await session.send_custom_message(
-                "toggle_trace", {"index": 2, "visible": bool(input.show_mammo())})
+            on, m = bool(input.show_mammo()), load_mammo()
+            await session.send_custom_message("set_mammo", {
+                "index": 2,
+                "lon": m["lon"] if on else [], "lat": m["lat"] if on else [],
+                "text": m["text"] if on else [],
+            })
 
     # =======================================================================
     # Info boxes
     # =======================================================================
+    def _class_rows(dist, n):
+        color = dict(zip(range(1, len(CLASS_COLORS) + 1), CLASS_COLORS))
+        rows = []
+        for code, cnt in list(dist.items())[:MAX_TABLE_ROWS]:
+            rows.append(ui.tags.tr(
+                ui.tags.td(ui.span(class_="chip", style=f"background:{color.get(code, '#ccc')}"),
+                           CLASS_LEVELS[code - 1]),
+                ui.tags.td(f"{cnt / n * 100:.0f}%", class_="num")))
+        return ui.tags.table(*rows, class_="vb-table")
+
+    def _check_rows(pos: int):
+        """Selected tract, priority class: why it got its class at these cutoffs."""
+        c, t = cut(), DF["tract"]
+        row = t.iloc[pos]
+        items = [(f"Burden ({MEASURES[c['measure']].lower()})", f"pctl_{c['measure']}",
+                  f"lvl_{c['measure']}", c["b"]),
+                 ("Access (distance)", f"pctl_access_{c['scale']}", f"lvl_access_{c['scale']}", c["a"]),
+                 ("Barriers", f"pctl_barriers_{c['scale']}", f"lvl_barriers_{c['scale']}", c["r"])]
+        trs = []
+        for label, pc, lc, cutv in items:
+            p, lv = row.get(pc), row.get(lc)
+            if pd.isna(lv):
+                txt, cls = ("suppressed" if label.startswith("Burden") else "no data"), None
+            else:
+                hit = lv >= cutv
+                txt = f"{p:.0f} {'≥' if hit else '<'} {cutv} {'✓' if hit else ''}"
+                cls = "ok" if hit else None
+            trs.append(ui.tags.tr(ui.tags.td(label), ui.tags.td(txt, class_=f"num {cls or ''}")))
+        return ui.tags.table(*trs, class_="vb-table")
+
     def _make_box(d: dict, theme):
         level, var = input.level(), cur_var()
         m = VARMETA[level][var]
-        rows, single = d["rows"], d["single"]
+        pos, single = d["pos"], d["single"]
         units = "counties" if level == "county" else "tracts"
+        
+        title = d["title"]
+        if d["single"] and selected() is not None:
+            title = ui.div(
+                ui.span(d["title"]),
+                ui.tags.button("✕ Clear selection", class_="clear-sel", type="button",
+                               title="Clear selection (Esc)"),
+                class_="vb-title-row",
+            )
 
-        if rows is None:
-            return ui.value_box(d["title"], "—", ui.div(d["sub"], class_="vb-sub"),
+        if pos is None or (not single and len(pos) == 0):
+            return ui.value_box(title, "—", ui.div(d["sub"], class_="vb-sub"),
                                 theme=theme, fill=False)
 
-        children = [ui.div(d["sub"], class_="vb-sub")]
-        if single:
-            main = fmt_value(m, rows.get(var))
-        else:
-            s = summarize(level, rows, var)
-            main = s["text"]
-            if m["type"] == "nominal":
-                if s["n"]:
-                    children.append(ui.div(
-                        f"Most common: {s['share']:.0f}% of {s['n']:,} {units}", class_="vb-sub"))
-            elif m["type"] == "ordinal" and s.get("pct_top") is not None:
-                children.append(ui.div(
-                    f"median · n = {s['n']:,} · {s['pct_top']:.0f}% {m['levels']['labels'][-1]}",
-                    class_="vb-sub"))
-            else:
-                children.append(ui.div(f"median · n = {s['n']:,}", class_="vb-sub"))
+        s = summarize(level, var, pos, single)
+        children = [ui.div(d["sub"], class_="vb-sub", title=d["sub"])]
+        table = None
 
-        if m["type"] == "nominal" and not single:
-            dist = summarize(level, rows, var)["dist"]
-            if dist is not None:
-                n = dist.sum()
-                color = dict(zip(m["levels"], m["colors"]))
-                trs = [ui.tags.tr(
-                    ui.tags.td(ui.span(class_="chip", style=f"background:{color.get(k, '#ccc')}"), k),
-                    ui.tags.td(f"{c / n * 100:.0f}%", class_="num"))
-                    for k, c in dist.items()]
-                children.append(ui.tags.table(*trs, class_="vb-table"))
-        else:
+        if var == "priority_class" and single:
+            table = _check_rows(pos)
+        elif s.get("kind") == "pooled":
+            children.append(ui.div(f"{s['n']:,} classified tracts", class_="vb-sub"))
+            if s.get("dist") is not None:
+                table = _class_rows(s["dist"], s["n"])
+        elif m["type"] == "nominal" and not single:
+            if s["n"]:
+                children.append(ui.div(f"Most common: {s['share']:.0f}% of {s['n']:,} {units}",
+                                       class_="vb-sub"))
+                vc = s["dist"]
+                if var == "priority_class":
+                    vc.index = [CLASS_LEVELS.index(k) + 1 for k in vc.index]
+                    table = _class_rows(vc, s["n"])
+                else:
+                    color = dict(zip(m["levels"], m["colors"]))
+                    table = ui.tags.table(*[ui.tags.tr(
+                        ui.tags.td(ui.span(class_="chip", style=f"background:{color.get(k, '#ccc')}"), k),
+                        ui.tags.td(f"{c / s['n'] * 100:.0f}%", class_="num"))
+                        for k, c in list(vc.items())[:MAX_TABLE_ROWS]], class_="vb-table")
+        elif m["type"] != "nominal":
+            if not single:
+                children.append(ui.div(f"median · n = {s['n']:,}", class_="vb-sub"))
             ids = table_vars(level, var)
-            trs = []
-            for v in ids:
-                cls = []
-                if v == var:
-                    cls.append("sel")
-                if m.get("table") and v == ids[-1] and VARMETA[level][v]["fmt"] == "score":
-                    cls.append("total")       # barrier score row under the four tertiles
-                trs.append(ui.tags.tr(
-                    ui.tags.td(short_label(level, v)),
-                    ui.tags.td(cell_text(level, rows, v, single), class_="num"),
-                    class_=" ".join(cls) or None))
-            children.append(ui.tags.table(*trs, class_="vb-table"))
+            if len(ids) > 1:
+                trs = []
+                for v in ids:
+                    vs = summarize(level, v, pos, single)
+                    trs.append(ui.tags.tr(ui.tags.td(short_label(level, v)),
+                                          ui.tags.td(vs["text"], class_="num"),
+                                          class_="sel" if v == var else None))
+                table = ui.tags.table(*trs, class_="vb-table")
+        if table is not None:
+            children.append(table)
 
         value_cls = "txt" if m["type"] == "nominal" else None
-        return ui.value_box(d["title"], ui.span(main, class_=value_cls), *children,
+        return ui.value_box(title, ui.span(s["text"], class_=value_cls), *children,
                             theme=theme, fill=False)
 
     @render.ui
@@ -1085,97 +1355,99 @@ def server(input, output, session):
         return _make_box(groups()[3], BOX_THEMES[3])
 
     # =======================================================================
-    # Chart 1 — need profile: percentile indicators, selected vs comparison groups
+    # Page 2 overlay: Need profile
     # =======================================================================
     @render.text
     def profile_title():
         unit = "tract" if input.level() == "tract" else "county"
-        return f"Need profile — percentiles (higher = more need), selected {unit} vs comparisons"
+        hint = " · click a polygon to add it" if selected() is None else ""
+        return f"Need profile · selected {unit} vs comparisons (| = cutoff){hint}"
 
     @reactive.effect
     async def _draw_profile():
-        if not map_visible():
+        if page() != "map":
             return
-        level = input.level()
+        level, c = input.level(), cut()
         gs = groups()
-        prof = [d for d in CATALOG[level] if d.get("profile")]
-        labels = [d["label"].replace(" (pctl)", "").replace(" (median tract pctl)", " †")
-                  for d in prof]
+        rows = PROFILE[level]
+        cols = [r["by_scale"][c["scale"]] if r.get("by_scale") else r["id"] for r in rows]
+        labels = [r["label"] + (" ◀" if r.get("measure") == c["measure"] else "") for r in rows]
+        data = DF[level]
 
         fig = go.Figure()
-        for x0, x1, c in ((0, 33.33, "rgba(0,0,0,0.00)"), (33.33, 66.67, "rgba(0,0,0,0.03)"),
-                          (66.67, 100, "rgba(178,24,43,0.06)")):
-            fig.add_vrect(x0=x0, x1=x1, fillcolor=c, line_width=0, layer="below")
         for i, d in enumerate(gs):
-            rows = d["rows"]
-            if rows is None:
+            pos = d["pos"]
+            if pos is None or (not d["single"] and len(pos) == 0):
                 continue
             if d["single"]:
-                vals = [rows.get(p["id"]) for p in prof]
+                vals = [data.iloc[pos][col] for col in cols]
             else:
-                vals = [rows[p["id"]].median() for p in prof]
+                vals = [data[col].iloc[pos].median() for col in cols]
             vals = [None if v is None or pd.isna(v) else float(v) for v in vals]
             fig.add_trace(go.Bar(
                 y=labels, x=vals, orientation="h", name=d["legend"],
                 marker_color=GROUP_COLORS[i],
                 marker_line=dict(color="#7a1f1c", width=1.2) if i == 0 else None,
-                hovertemplate=f"{d['legend']}<br>%{{y}}: %{{x:.0f}}<extra></extra>",
+                hovertemplate=f"{d.get('hover', d['legend'])}<br>%{{y}}: %{{x:.0f}}<extra></extra>",
             ))
-        if selected() is None:
-            fig.add_annotation(text="Click a polygon on the map to add its profile",
-                               xref="paper", yref="paper", x=0, y=1.07, xanchor="left",
-                               showarrow=False, font=dict(size=11, color="#6b7280"))
-        notes = "Medians for comparison groups." + (
-            " † = median tract percentile within the county." if level == "county" else "")
-        fig.add_annotation(text=notes, xref="paper", yref="paper", x=0, y=-0.16, xanchor="left",
-                           yanchor="top", showarrow=False, font=dict(size=10, color="#6b7280"))
+        # cutoff marks for the three classification dimensions
+        cut_for = {"access": c["a"], "barriers": c["r"]}
+        mx, my = [], []
+        for r, lab in zip(rows, labels):
+            if r["dim"] in cut_for:
+                mx.append(cut_for[r["dim"]]); my.append(lab)
+            elif r["dim"] == "burden" and r.get("measure") == c["measure"]:
+                mx.append(c["b"]); my.append(lab)
+        fig.add_trace(go.Scatter(
+            x=mx, y=my, mode="markers", name="Cutoff",
+            marker=dict(symbol="line-ns", size=22, line=dict(width=2.5, color=CUTOFF_MARK_COLOR)),
+            hovertemplate="Cutoff: %{x}<extra></extra>",
+        ))
+
         fig.update_layout(
-            template="plotly_white", font=PLOT_FONT, barmode="group", bargap=0.25,
-            margin=dict(l=10, r=15, t=35, b=70),
-            xaxis=dict(range=[0, 100], title=None, tickvals=[0, 33.33, 66.67, 100],
-                       ticktext=["0", "33 · low|mod", "67 · mod|high", "100"]),
-            yaxis=dict(autorange="reversed", automargin=True),
-            legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1),
+            template="plotly_white", font=PLOT_FONT, barmode="group", bargap=0.2,
+            bargroupgap=0.05, margin=dict(l=4, r=8, t=16, b=4),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(255,255,255,0.6)",
+            xaxis=dict(range=[0, 100], title=None, tickvals=[0, 25, 50, 67, 80, 90, 100],
+                       tickfont=dict(size=9), gridcolor="#e5e7eb"),
+            yaxis=dict(autorange="reversed", automargin=True, tickfont=dict(size=10)),
+                        legend=dict(orientation="h", x=0, xanchor="left", y=1.0, yanchor="bottom",
+                        font=dict(size=9), itemsizing="constant", itemwidth=30,
+                        tracegroupgap=0, bgcolor="rgba(0,0,0,0)"),
+            showlegend=True,
         )
         await session.send_custom_message("draw_chart", {"id": "profile", "fig": _fig_payload(fig)})
 
     # =======================================================================
-    # Chart 2 — scatterplot: selected location vs all US locations
+    # Page 3 overlay: scatterplot
     # =======================================================================
     @render.text
     def scatter_title():
         lvl = input.level()
         units = "counties" if lvl == "county" else "tracts"
-        return f"{VARMETA[lvl][cur_y()]['label']} vs {VARMETA[lvl][cur_x()]['label']} — all US {units}"
+        return (f"{short_label(lvl, cur_y())} vs {short_label(lvl, cur_x())} · all US {units}")
 
     @reactive.effect
     async def _draw_scatter():
-        if not map_visible():
+        if page() != "barriers":
             return
         level, xv, yv = input.level(), cur_x(), cur_y()
         show_trend = input.trend()
         gid = selected()
         units = "counties" if level == "county" else "tracts"
         mx, my = VARMETA[level][xv], VARMETA[level][yv]
-        xl, yl = mx["label"], my["label"]
+        xl, yl = short_label(level, xv), short_label(level, yv)
 
-        cols = list(dict.fromkeys([xv, yv]))
-        df = DF[level][cols].dropna()
+        df = DF[level][list(dict.fromkeys([xv, yv]))].dropna()
         x = df[xv].to_numpy(dtype=float)
         y = df[yv].to_numpy(dtype=float)
         names = county_names() if level == "county" else tract_names()
         labels = [names.get(g, g) for g in df.index]
 
-        # ordinal / integer axes: jitter points so overlapping values stay visible
-        rng = np.random.default_rng(0)
-        def jitter(m, a):
-            return a + rng.uniform(-0.18, 0.18, len(a)) if m["type"] == "ordinal" or m["fmt"] == "score" else a
-        jx, jy = jitter(mx, x), jitter(my, y)
-
         fig = go.Figure()
         fig.add_trace(go.Scattergl(
-            x=jx, y=jy, mode="markers", name=f"All US {units} (n = {len(df):,})",
-            marker=dict(size=6 if level == "county" else 4, color=SCATTER_POINT_COLOR,
+            x=x, y=y, mode="markers", name=f"All US {units} (n = {len(df):,})",
+            marker=dict(size=5 if level == "county" else 3, color=SCATTER_POINT_COLOR,
                         opacity=0.5 if level == "county" else 0.3),
             customdata=np.column_stack([labels, [fmt_value(mx, a) for a in x],
                                         [fmt_value(my, b) for b in y]]) if len(df) else None,
@@ -1188,46 +1460,39 @@ def server(input, output, session):
             xs = np.array([x.min(), x.max()])
             fig.add_trace(go.Scattergl(
                 x=xs, y=slope * xs + intercept, mode="lines",
-                name=f"Linear trend (r = {r:.2f}, slope = {slope:,.3g})",
-                line=dict(color=TREND_COLOR, width=2), hoverinfo="skip",
+                name=f"Trend (r = {r:.2f})", line=dict(color=TREND_COLOR, width=2),
+                hoverinfo="skip",
             ))
 
-        def note(text, color="#6b7280"):
-            fig.add_annotation(text=text, xref="paper", yref="paper", x=0, y=1.07,
-                               xanchor="left", showarrow=False, font=dict(size=11, color=color))
-
+        note = "Click a polygon on the map to locate it here"
+        note_color = "#6b7280"
         if gid:
             name = place_name(level, gid)
             if gid in df.index:
                 sx, sy = float(df.at[gid, xv]), float(df.at[gid, yv])
-                px_ = (x < sx).mean() * 100
-                py_ = (y < sy).mean() * 100
+                px_, py_ = (x < sx).mean() * 100, (y < sy).mean() * 100
                 fig.add_hline(y=sy, line_width=1, line_dash="dot", line_color=SELECTED_COLOR)
                 fig.add_vline(x=sx, line_width=1, line_dash="dot", line_color=SELECTED_COLOR)
                 fig.add_trace(go.Scattergl(
-                    x=[sx], y=[sy], mode="markers", name=f"Selected: {name}",
-                    marker=dict(size=15, color=SELECTED_COLOR, symbol="diamond",
+                    x=[sx], y=[sy], mode="markers", name="Selected region",
+                    marker=dict(size=13, color=SELECTED_COLOR, symbol="diamond",
                                 line=dict(color="white", width=1.5)),
                     hovertemplate=f"<b>{name}</b><br>{xl}: {fmt_value(mx, sx)}"
                                   f"<br>{yl}: {fmt_value(my, sy)}<extra></extra>",
                 ))
-                note(f"{name}: higher than {px_:.0f}% of US {units} on X, {py_:.0f}% on Y",
-                     SELECTED_COLOR)
+                note = f"{name}: above {px_:.0f}% of US {units} on X, {py_:.0f}% on Y"
+                note_color = SELECTED_COLOR
             else:
-                note(f"{name} has no data for {xl} and/or {yl}")
-        else:
-            note("Click a polygon on the map to locate it here")
-
-        def axis(m, t):
-            a = dict(title=t, zeroline=False)
-            if m["type"] == "ordinal":
-                a.update(tickvals=m["levels"]["values"], ticktext=m["levels"]["labels"])
-            return a
-
+                note = f"{name} has no data for {xl} and/or {yl}"
+        fig.add_annotation(text=note, xref="paper", yref="paper", x=0, y=1.0, xanchor="left",
+                           yanchor="bottom", showarrow=False, font=dict(size=10, color=note_color))
         fig.update_layout(
-            template="plotly_white", font=PLOT_FONT, margin=dict(l=55, r=15, t=35, b=10),
-            xaxis=axis(mx, xl), yaxis=axis(my, yl),
-            legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="left", x=0),
+            template="plotly_white", font=PLOT_FONT, margin=dict(l=48, r=8, t=18, b=36),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(255,255,255,0.6)",
+            xaxis=dict(title=dict(text=xl, font=dict(size=10)), zeroline=False),
+            yaxis=dict(title=dict(text=yl, font=dict(size=10)), zeroline=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.06, xanchor="right", x=1,
+                        font=dict(size=9)),
             uirevision=f"{level}-{xv}-{yv}",
         )
         await session.send_custom_message("draw_chart", {"id": "scatter", "fig": _fig_payload(fig)})

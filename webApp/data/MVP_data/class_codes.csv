@@ -1,0 +1,8 @@
+class_code,class
+1,High priority
+2,Access gap
+3,Barrier gap
+4,Monitor
+5,Lower priority
+6,Burden suppressed: gaps present
+7,Burden suppressed: no gaps

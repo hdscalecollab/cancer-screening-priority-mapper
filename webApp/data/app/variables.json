@@ -2,33 +2,218 @@
  "meta": {
   "acs_period": "2019-2023",
   "burden_source": "State Cancer Profiles, female breast cancer, late stage, 2019-2023",
-  "generated": "2026-11-16T03:06:44",
+  "generated": "2026-11-18T03:50:09",
   "qa_failed": [],
+  "classes": {
+   "levels": [
+    "High priority",
+    "Access gap",
+    "Barrier gap",
+    "Monitor",
+    "Lower priority",
+    "Burden suppressed: gaps present",
+    "Burden suppressed: no gaps"
+   ],
+   "colors": [
+    "#B2182B",
+    "#F4A261",
+    "#8E5EA2",
+    "#F6D55C",
+    "#9DC3E6",
+    "#7F7F7F",
+    "#D9D9D9"
+   ]
+  },
+  "cutoffs": {
+   "options": [
+    67,
+    80,
+    90
+   ],
+   "defaults": {
+    "measure": "aair",
+    "scale": "ur",
+    "burden": 90,
+    "access": 67,
+    "barriers": 67
+   }
+  },
+  "measures": {
+   "aair": "Incidence",
+   "cases": "Cases",
+   "late_stage": "% late stage"
+  },
+  "scales": {
+   "ur": "Urban/rural",
+   "nat": "National"
+  },
   "defaults": {
    "tract": {
-    "var": "class_aair",
-    "x": "barriers",
-    "y": "pctl_NEAR_DIST"
+    "pa": "priority_class",
+    "b": "pctl_barriers_ur",
+    "x": "pctl_barriers_ur",
+    "y": "pctl_access_ur"
    },
    "county": {
-    "var": "pct_high_aair",
-    "x": "med_barriers",
-    "y": "pct_high_aair"
+    "pa": "pct_high_priority",
+    "b": "med_pctl_barriers_ur",
+    "x": "med_pctl_barriers_ur",
+    "y": "med_pctl_access_ur"
    }
+  },
+  "profile": {
+   "tract": [
+    {
+     "label": "Distance to facility",
+     "dim": "access",
+     "by_scale": {
+      "ur": "pctl_access_ur",
+      "nat": "pctl_access_nat"
+     }
+    },
+    {
+     "label": "Barrier index",
+     "dim": "barriers",
+     "by_scale": {
+      "ur": "pctl_barriers_ur",
+      "nat": "pctl_barriers_nat"
+     }
+    },
+    {
+     "label": "  Uninsured",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "pctl_ur_pct_uninsured_f35_74",
+      "nat": "pctl_nat_pct_uninsured_f35_74"
+     }
+    },
+    {
+     "label": "  No vehicle",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "pctl_ur_pct_no_vehicle_hh",
+      "nat": "pctl_nat_pct_no_vehicle_hh"
+     }
+    },
+    {
+     "label": "  No HS diploma",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "pctl_ur_pct_no_hs_f25",
+      "nat": "pctl_nat_pct_no_hs_f25"
+     }
+    },
+    {
+     "label": "  Limited English",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "pctl_ur_pct_lep_hh",
+      "nat": "pctl_nat_pct_lep_hh"
+     }
+    },
+    {
+     "label": "Burden: incidence rate",
+     "dim": "burden",
+     "measure": "aair",
+     "id": "pctl_aair"
+    },
+    {
+     "label": "Burden: cases",
+     "dim": "burden",
+     "measure": "cases",
+     "id": "pctl_cases"
+    },
+    {
+     "label": "Burden: % late stage",
+     "dim": "burden",
+     "measure": "late_stage",
+     "id": "pctl_late_stage"
+    }
+   ],
+   "county": [
+    {
+     "label": "Distance to facility",
+     "dim": "access",
+     "by_scale": {
+      "ur": "med_pctl_access_ur",
+      "nat": "med_pctl_access_nat"
+     }
+    },
+    {
+     "label": "Barrier index",
+     "dim": "barriers",
+     "by_scale": {
+      "ur": "med_pctl_barriers_ur",
+      "nat": "med_pctl_barriers_nat"
+     }
+    },
+    {
+     "label": "  Uninsured",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "med_pctl_ur_pct_uninsured_f35_74",
+      "nat": "med_pctl_nat_pct_uninsured_f35_74"
+     }
+    },
+    {
+     "label": "  No vehicle",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "med_pctl_ur_pct_no_vehicle_hh",
+      "nat": "med_pctl_nat_pct_no_vehicle_hh"
+     }
+    },
+    {
+     "label": "  No HS diploma",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "med_pctl_ur_pct_no_hs_f25",
+      "nat": "med_pctl_nat_pct_no_hs_f25"
+     }
+    },
+    {
+     "label": "  Limited English",
+     "dim": "barrier_item",
+     "by_scale": {
+      "ur": "med_pctl_ur_pct_lep_hh",
+      "nat": "med_pctl_nat_pct_lep_hh"
+     }
+    },
+    {
+     "label": "Burden: incidence rate",
+     "dim": "burden",
+     "measure": "aair",
+     "id": "pctl_aair"
+    },
+    {
+     "label": "Burden: cases",
+     "dim": "burden",
+     "measure": "cases",
+     "id": "pctl_cases"
+    },
+    {
+     "label": "Burden: % late stage",
+     "dim": "burden",
+     "measure": "late_stage",
+     "id": "pctl_late_stage"
+    }
+   ]
   }
  },
  "tract": [
   {
-   "id": "class_aair",
-   "label": "Priority class (incidence rate view)",
-   "short": "Class \u00b7 incidence rate",
+   "id": "priority_class",
+   "label": "Priority class",
+   "short": null,
    "group": "Priority",
+   "pages": [
+    "pa"
+   ],
    "type": "nominal",
    "fmt": "text",
-   "description": "Priority class using county incidence rate burden",
+   "description": "Class at the burden measure, ranking and cutoffs selected below",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
+   "dynamic": true,
    "levels": [
     "High priority",
     "Access gap",
@@ -49,1163 +234,1364 @@
    ]
   },
   {
-   "id": "class_cases",
-   "label": "Priority class (cases view)",
-   "short": "Class \u00b7 cases",
-   "group": "Priority",
-   "type": "nominal",
-   "fmt": "text",
-   "description": "Priority class using county cases burden",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": [
-    "High priority",
-    "Access gap",
-    "Barrier gap",
-    "Monitor",
-    "Lower priority",
-    "Burden suppressed: gaps present",
-    "Burden suppressed: no gaps"
+   "id": "dist_mi",
+   "label": "Distance to nearest mammography facility (miles)",
+   "short": "Distance (mi)",
+   "group": "Access",
+   "pages": [
+    "pa"
    ],
-   "colors": [
-    "#B2182B",
-    "#F4A261",
-    "#8E5EA2",
-    "#F6D55C",
-    "#9DC3E6",
-    "#7F7F7F",
-    "#D9D9D9"
-   ]
-  },
-  {
-   "id": "class_late_stage",
-   "label": "Priority class (% late stage view)",
-   "short": "Class \u00b7 % late stage",
-   "group": "Priority",
-   "type": "nominal",
-   "fmt": "text",
-   "description": "Priority class using county % late stage burden",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": [
-    "High priority",
-    "Access gap",
-    "Barrier gap",
-    "Monitor",
-    "Lower priority",
-    "Burden suppressed: gaps present",
-    "Burden suppressed: no gaps"
-   ],
-   "colors": [
-    "#B2182B",
-    "#F4A261",
-    "#8E5EA2",
-    "#F6D55C",
-    "#9DC3E6",
-    "#7F7F7F",
-    "#D9D9D9"
-   ]
-  },
-  {
-   "id": "barriers",
-   "label": "Barrier score (4-12)",
-   "short": "Barrier score",
-   "group": "Priority",
    "type": "numeric",
-   "fmt": "score",
-   "description": "Sum of the four barrier tertiles (Low = 1, Moderate = 2, High = 3)",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "table": [
-    "pct_uninsured_f35_74_t",
-    "pct_no_vehicle_hh_t",
-    "pct_no_hs_f25_t",
-    "pct_lep_hh_t",
-    "barriers"
-   ]
+   "fmt": "mi",
+   "description": "Nearest FDA-certified facility (NEAR_DIST)",
+   "colorscale": "YlOrRd"
   },
   {
-   "id": "access",
-   "label": "Distance-to-mammography tertile",
-   "short": null,
+   "id": "pctl_access",
+   "label": "Access percentile",
+   "short": "Access pctl",
    "group": "Access",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "High = farthest",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
-   ]
-  },
-  {
-   "id": "pctl_NEAR_DIST",
-   "label": "Distance to nearest facility (pctl)",
-   "short": null,
-   "group": "Access",
+   "pages": [
+    "pa"
+   ],
    "type": "numeric",
    "fmt": "pctl",
-   "description": "Higher = farther away; ranked across US tracts",
+   "description": "Distance percentile (higher = farther); follows the ranking selected below",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "by_scale": {
+    "ur": "pctl_access_ur",
+    "nat": "pctl_access_nat"
+   }
   },
   {
-   "id": "pct_uninsured_f35_74_t",
-   "label": "Uninsured women 35-74 (tertile)",
-   "short": "Uninsured tertile",
+   "id": "pctl_access_ur",
+   "label": "Access percentile (urban/rural)",
+   "short": "Access pctl (ur)",
+   "group": "Access",
+   "pages": [],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd"
+  },
+  {
+   "id": "pctl_access_nat",
+   "label": "Access percentile (national)",
+   "short": "Access pctl (nat)",
+   "group": "Access",
+   "pages": [],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd"
+  },
+  {
+   "id": "pctl_barriers_ur",
+   "label": "Barrier percentile (urban/rural)",
+   "short": "Barrier pctl (ur)",
    "group": "Barriers",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "Barrier tertile from df_rank; the four tertiles sum to the barrier score",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "pages": [
+    "b"
    ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Barrier index ranked across tracts; higher = more barriers",
+   "colorscale": "YlOrRd",
    "table": [
-    "pct_uninsured_f35_74_t",
-    "pct_no_vehicle_hh_t",
-    "pct_no_hs_f25_t",
-    "pct_lep_hh_t",
-    "barriers"
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "pctl_barriers_nat",
+   "label": "Barrier percentile (national)",
+   "short": "Barrier pctl (nat)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Barrier index ranked across tracts; higher = more barriers",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "barrier_index_ur",
+   "label": "Barrier index (urban/rural)",
+   "short": "Barrier index (ur)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Mean of the four barrier percentiles",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "barrier_index_nat",
+   "label": "Barrier index (national)",
+   "short": "Barrier index (nat)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Mean of the four barrier percentiles",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "pct_uninsured_f35_74",
    "label": "Uninsured women 35-74 (%)",
-   "short": null,
+   "short": "Uninsured %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_uninsured_f35_74",
+    "pct_no_vehicle_hh",
+    "pct_no_hs_f25",
+    "pct_lep_hh"
+   ]
   },
   {
-   "id": "pctl_pct_uninsured_f35_74",
-   "label": "Uninsured women 35-74 (pctl)",
-   "short": null,
+   "id": "pctl_ur_pct_uninsured_f35_74",
+   "label": "Uninsured women 35-74 (pctl, urban/rural)",
+   "short": "Uninsured pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_no_vehicle_hh_t",
-   "label": "Households without a vehicle (tertile)",
-   "short": "No vehicle tertile",
+   "id": "pctl_nat_pct_uninsured_f35_74",
+   "label": "Uninsured women 35-74 (pctl, national)",
+   "short": "Uninsured pctl",
    "group": "Barriers",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "Barrier tertile from df_rank; the four tertiles sum to the barrier score",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "pages": [
+    "b"
    ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
    "table": [
-    "pct_uninsured_f35_74_t",
-    "pct_no_vehicle_hh_t",
-    "pct_no_hs_f25_t",
-    "pct_lep_hh_t",
-    "barriers"
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "pct_no_vehicle_hh",
    "label": "Households without a vehicle (%)",
-   "short": null,
+   "short": "No vehicle %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_uninsured_f35_74",
+    "pct_no_vehicle_hh",
+    "pct_no_hs_f25",
+    "pct_lep_hh"
+   ]
   },
   {
-   "id": "pctl_pct_no_vehicle_hh",
-   "label": "Households without a vehicle (pctl)",
-   "short": null,
+   "id": "pctl_ur_pct_no_vehicle_hh",
+   "label": "Households without a vehicle (pctl, urban/rural)",
+   "short": "No vehicle pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_no_hs_f25_t",
-   "label": "Women 25+ without HS diploma (tertile)",
-   "short": "No HS diploma tertile",
+   "id": "pctl_nat_pct_no_vehicle_hh",
+   "label": "Households without a vehicle (pctl, national)",
+   "short": "No vehicle pctl",
    "group": "Barriers",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "Barrier tertile from df_rank; the four tertiles sum to the barrier score",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "pages": [
+    "b"
    ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
    "table": [
-    "pct_uninsured_f35_74_t",
-    "pct_no_vehicle_hh_t",
-    "pct_no_hs_f25_t",
-    "pct_lep_hh_t",
-    "barriers"
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "pct_no_hs_f25",
    "label": "Women 25+ without HS diploma (%)",
-   "short": null,
+   "short": "No HS diploma %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_uninsured_f35_74",
+    "pct_no_vehicle_hh",
+    "pct_no_hs_f25",
+    "pct_lep_hh"
+   ]
   },
   {
-   "id": "pctl_pct_no_hs_f25",
-   "label": "Women 25+ without HS diploma (pctl)",
-   "short": null,
+   "id": "pctl_ur_pct_no_hs_f25",
+   "label": "Women 25+ without HS diploma (pctl, urban/rural)",
+   "short": "No HS diploma pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_lep_hh_t",
-   "label": "Limited-English households (tertile)",
-   "short": "Limited English tertile",
+   "id": "pctl_nat_pct_no_hs_f25",
+   "label": "Women 25+ without HS diploma (pctl, national)",
+   "short": "No HS diploma pctl",
    "group": "Barriers",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "Barrier tertile from df_rank; the four tertiles sum to the barrier score",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "pages": [
+    "b"
    ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
    "table": [
-    "pct_uninsured_f35_74_t",
-    "pct_no_vehicle_hh_t",
-    "pct_no_hs_f25_t",
-    "pct_lep_hh_t",
-    "barriers"
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "pct_lep_hh",
    "label": "Limited-English households (%)",
-   "short": null,
+   "short": "Limited English %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_uninsured_f35_74",
+    "pct_no_vehicle_hh",
+    "pct_no_hs_f25",
+    "pct_lep_hh"
+   ]
   },
   {
-   "id": "pctl_pct_lep_hh",
-   "label": "Limited-English households (pctl)",
-   "short": null,
+   "id": "pctl_ur_pct_lep_hh",
+   "label": "Limited-English households (pctl, urban/rural)",
+   "short": "Limited English pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_ur_pct_uninsured_f35_74",
+    "pctl_ur_pct_no_vehicle_hh",
+    "pctl_ur_pct_no_hs_f25",
+    "pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "pctl_nat_pct_lep_hh",
+   "label": "Limited-English households (pctl, national)",
+   "short": "Limited English pctl",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_nat_pct_uninsured_f35_74",
+    "pctl_nat_pct_no_vehicle_hh",
+    "pctl_nat_pct_no_hs_f25",
+    "pctl_nat_pct_lep_hh"
+   ]
   },
   {
    "id": "aair",
    "label": "County incidence rate",
-   "short": null,
+   "short": "County incidence rate",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "rate",
-   "description": "County-level context, same for every tract in the county",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "pctl_aair",
-   "label": "County incidence rate (pctl)",
-   "short": null,
-   "group": "County burden",
-   "type": "numeric",
-   "fmt": "pctl",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
-  },
-  {
-   "id": "burden_aair",
-   "label": "County incidence rate tertile",
-   "short": null,
-   "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
    ]
   },
   {
    "id": "cases",
    "label": "County cases",
-   "short": null,
+   "short": "County cases",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count1",
-   "description": "County-level context, same for every tract in the county",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "pctl_cases",
-   "label": "County cases (pctl)",
-   "short": null,
-   "group": "County burden",
-   "type": "numeric",
-   "fmt": "pctl",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
-  },
-  {
-   "id": "burden_cases",
-   "label": "County cases tertile",
-   "short": null,
-   "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
    ]
   },
   {
    "id": "late_stage",
    "label": "County % late stage",
-   "short": null,
+   "short": "County % late stage",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
-   "description": "County-level context, same for every tract in the county",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
+   ]
   },
   {
-   "id": "pctl_late_stage",
-   "label": "County % late stage (pctl)",
-   "short": null,
+   "id": "pctl_aair",
+   "label": "County incidence rate (pctl)",
+   "short": "Incidence pctl",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
+   ]
   },
   {
-   "id": "burden_late_stage",
-   "label": "County % late stage tertile",
-   "short": null,
+   "id": "pctl_cases",
+   "label": "County cases (pctl)",
+   "short": "Cases pctl",
    "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
+   ]
+  },
+  {
+   "id": "pctl_late_stage",
+   "label": "County % late stage (pctl)",
+   "short": "% late stage pctl",
+   "group": "County burden",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
    ]
   },
   {
    "id": "n_women_40_74",
    "label": "Women 40-74",
-   "short": null,
+   "short": "Women 40-74",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
   },
   {
    "id": "n_women_40_49",
    "label": "Women 40-49",
-   "short": null,
+   "short": "Women 40-49",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
   },
   {
    "id": "n_women_50_74",
    "label": "Women 50-74",
-   "short": null,
+   "short": "Women 50-74",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
+  },
+  {
+   "id": "rurality",
+   "label": "Urban / rural (county)",
+   "short": null,
+   "group": "Context",
+   "pages": [
+    "b"
+   ],
+   "type": "nominal",
+   "fmt": "text",
+   "description": "2023 Rural-Urban Continuum label of the county",
+   "colorscale": "YlOrRd",
+   "levels": [
+    "Urban",
+    "Rural"
+   ],
+   "colors": [
+    "#6C8EBF",
+    "#9BBF6C"
+   ]
   },
   {
    "id": "pct_nh_white",
    "label": "Non-Hispanic White (%)",
-   "short": null,
+   "short": "Non-Hispanic White",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   },
   {
    "id": "pct_nh_black",
    "label": "Non-Hispanic Black (%)",
-   "short": null,
+   "short": "Non-Hispanic Black",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   },
   {
    "id": "pct_nh_aian",
    "label": "Non-Hispanic AIAN (%)",
-   "short": null,
+   "short": "Non-Hispanic AIAN",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   },
   {
    "id": "pct_nh_asian",
    "label": "Non-Hispanic Asian (%)",
-   "short": null,
+   "short": "Non-Hispanic Asian",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   },
   {
    "id": "pct_hispanic",
    "label": "Hispanic or Latino (%)",
-   "short": null,
+   "short": "Hispanic or Latino",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   },
   {
    "id": "ice_race_income",
    "label": "ICE race + income",
-   "short": null,
+   "short": "ICE race+income",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "index",
-   "description": "-1 to 1; higher = more privileged (not used in score)",
-   "colorscale": "RdBu",
-   "reverse": false,
-   "profile": false
+   "description": "-1 to 1; higher = more privileged (context only)",
+   "colorscale": "RdBu"
   },
   {
    "id": "pct_poverty_f35_74",
    "label": "Women 35-74 below poverty (%)",
-   "short": null,
+   "short": "Women 35-74 below poverty",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "pct_nh_white",
+    "pct_nh_black",
+    "pct_nh_aian",
+    "pct_nh_asian",
+    "pct_hispanic"
+   ]
   }
  ],
  "county": [
   {
-   "id": "pct_high_aair",
-   "label": "% tracts High priority (incidence rate view)",
-   "short": "% High \u00b7 incidence rate",
+   "id": "pct_high_priority",
+   "label": "% of tracts High priority",
+   "short": "% High priority",
    "group": "Priority",
+   "pages": [
+    "pa"
+   ],
    "type": "numeric",
    "fmt": "pct",
-   "description": "Share of classified tracts in the county that are High priority",
+   "description": "Share of the county's classified tracts that are High priority at the cutoffs selected below",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "dynamic": true
   },
   {
-   "id": "pct_high_cases",
-   "label": "% tracts High priority (cases view)",
-   "short": "% High \u00b7 cases",
-   "group": "Priority",
-   "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of classified tracts in the county that are High priority",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "pct_high_late_stage",
-   "label": "% tracts High priority (% late stage view)",
-   "short": "% High \u00b7 % late stage",
-   "group": "Priority",
-   "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of classified tracts in the county that are High priority",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "med_barriers",
-   "label": "Barrier score (median tract)",
-   "short": "Barrier score (median)",
-   "group": "Priority",
-   "type": "numeric",
-   "fmt": "score",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "table": [
-    "pct_high_pct_uninsured_f35_74_t",
-    "pct_high_pct_no_vehicle_hh_t",
-    "pct_high_pct_no_hs_f25_t",
-    "pct_high_pct_lep_hh_t",
-    "med_barriers"
-   ]
-  },
-  {
-   "id": "med_pctl_NEAR_DIST",
-   "label": "Distance to facility (median tract pctl)",
-   "short": null,
+   "id": "med_dist_mi",
+   "label": "Distance to nearest mammography facility (median tract) (miles)",
+   "short": "Distance (mi)",
    "group": "Access",
+   "pages": [
+    "pa"
+   ],
+   "type": "numeric",
+   "fmt": "mi",
+   "description": "Nearest FDA-certified facility (NEAR_DIST)",
+   "colorscale": "YlOrRd"
+  },
+  {
+   "id": "med_pctl_access",
+   "label": "Access percentile (median tract)",
+   "short": "Access pctl",
+   "group": "Access",
+   "pages": [
+    "pa"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Distance percentile (higher = farther); follows the ranking selected below",
+   "colorscale": "YlOrRd",
+   "by_scale": {
+    "ur": "med_pctl_access_ur",
+    "nat": "med_pctl_access_nat"
+   }
+  },
+  {
+   "id": "med_pctl_access_ur",
+   "label": "Access percentile (median tract) (urban/rural)",
+   "short": "Access pctl (ur)",
+   "group": "Access",
+   "pages": [],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "colorscale": "YlOrRd"
   },
   {
-   "id": "pct_high_pct_uninsured_f35_74_t",
-   "label": "Uninsured women 35-74 (% tracts High tertile)",
-   "short": "Uninsured: % High",
-   "group": "Barriers",
+   "id": "med_pctl_access_nat",
+   "label": "Access percentile (median tract) (national)",
+   "short": "Access pctl (nat)",
+   "group": "Access",
+   "pages": [],
    "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of the county's tracts in the High tertile for this barrier",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd"
+  },
+  {
+   "id": "med_pctl_barriers_ur",
+   "label": "Barrier percentile (median tract) (urban/rural)",
+   "short": "Barrier pctl (ur)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Barrier index ranked across tracts; higher = more barriers",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
    "table": [
-    "pct_high_pct_uninsured_f35_74_t",
-    "pct_high_pct_no_vehicle_hh_t",
-    "pct_high_pct_no_hs_f25_t",
-    "pct_high_pct_lep_hh_t",
-    "med_barriers"
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "med_pctl_barriers_nat",
+   "label": "Barrier percentile (median tract) (national)",
+   "short": "Barrier pctl (nat)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Barrier index ranked across tracts; higher = more barriers",
+   "colorscale": "YlOrRd",
+   "table": [
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "med_barrier_index_ur",
+   "label": "Barrier index (median tract) (urban/rural)",
+   "short": "Barrier index (ur)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Mean of the four barrier percentiles",
+   "colorscale": "YlOrRd",
+   "table": [
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "med_barrier_index_nat",
+   "label": "Barrier index (median tract) (national)",
+   "short": "Barrier index (nat)",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "Mean of the four barrier percentiles",
+   "colorscale": "YlOrRd",
+   "table": [
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "med_pct_uninsured_f35_74",
-   "label": "Uninsured women 35-74 (median tract %)",
-   "short": null,
+   "label": "Uninsured women 35-74 (median tract) (%)",
+   "short": "Uninsured %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_uninsured_f35_74",
+    "med_pct_no_vehicle_hh",
+    "med_pct_no_hs_f25",
+    "med_pct_lep_hh"
+   ]
   },
   {
-   "id": "med_pctl_pct_uninsured_f35_74",
-   "label": "Uninsured women 35-74 (median tract pctl)",
-   "short": null,
+   "id": "med_pctl_ur_pct_uninsured_f35_74",
+   "label": "Uninsured women 35-74 (median tract) (pctl, urban/rural)",
+   "short": "Uninsured pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_high_pct_no_vehicle_hh_t",
-   "label": "Households without a vehicle (% tracts High tertile)",
-   "short": "No vehicle: % High",
+   "id": "med_pctl_nat_pct_uninsured_f35_74",
+   "label": "Uninsured women 35-74 (median tract) (pctl, national)",
+   "short": "Uninsured pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of the county's tracts in the High tertile for this barrier",
+   "fmt": "pctl",
+   "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
    "table": [
-    "pct_high_pct_uninsured_f35_74_t",
-    "pct_high_pct_no_vehicle_hh_t",
-    "pct_high_pct_no_hs_f25_t",
-    "pct_high_pct_lep_hh_t",
-    "med_barriers"
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "med_pct_no_vehicle_hh",
-   "label": "Households without a vehicle (median tract %)",
-   "short": null,
+   "label": "Households without a vehicle (median tract) (%)",
+   "short": "No vehicle %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_uninsured_f35_74",
+    "med_pct_no_vehicle_hh",
+    "med_pct_no_hs_f25",
+    "med_pct_lep_hh"
+   ]
   },
   {
-   "id": "med_pctl_pct_no_vehicle_hh",
-   "label": "Households without a vehicle (median tract pctl)",
-   "short": null,
+   "id": "med_pctl_ur_pct_no_vehicle_hh",
+   "label": "Households without a vehicle (median tract) (pctl, urban/rural)",
+   "short": "No vehicle pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_high_pct_no_hs_f25_t",
-   "label": "Women 25+ without HS diploma (% tracts High tertile)",
-   "short": "No HS diploma: % High",
+   "id": "med_pctl_nat_pct_no_vehicle_hh",
+   "label": "Households without a vehicle (median tract) (pctl, national)",
+   "short": "No vehicle pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of the county's tracts in the High tertile for this barrier",
+   "fmt": "pctl",
+   "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
    "table": [
-    "pct_high_pct_uninsured_f35_74_t",
-    "pct_high_pct_no_vehicle_hh_t",
-    "pct_high_pct_no_hs_f25_t",
-    "pct_high_pct_lep_hh_t",
-    "med_barriers"
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "med_pct_no_hs_f25",
-   "label": "Women 25+ without HS diploma (median tract %)",
-   "short": null,
+   "label": "Women 25+ without HS diploma (median tract) (%)",
+   "short": "No HS diploma %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_uninsured_f35_74",
+    "med_pct_no_vehicle_hh",
+    "med_pct_no_hs_f25",
+    "med_pct_lep_hh"
+   ]
   },
   {
-   "id": "med_pctl_pct_no_hs_f25",
-   "label": "Women 25+ without HS diploma (median tract pctl)",
-   "short": null,
+   "id": "med_pctl_ur_pct_no_hs_f25",
+   "label": "Women 25+ without HS diploma (median tract) (pctl, urban/rural)",
+   "short": "No HS diploma pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
   },
   {
-   "id": "pct_high_pct_lep_hh_t",
-   "label": "Limited-English households (% tracts High tertile)",
-   "short": "Limited English: % High",
+   "id": "med_pctl_nat_pct_no_hs_f25",
+   "label": "Women 25+ without HS diploma (median tract) (pctl, national)",
+   "short": "No HS diploma pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
-   "fmt": "pct",
-   "description": "Share of the county's tracts in the High tertile for this barrier",
+   "fmt": "pctl",
+   "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
    "table": [
-    "pct_high_pct_uninsured_f35_74_t",
-    "pct_high_pct_no_vehicle_hh_t",
-    "pct_high_pct_no_hs_f25_t",
-    "pct_high_pct_lep_hh_t",
-    "med_barriers"
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
    ]
   },
   {
    "id": "med_pct_lep_hh",
-   "label": "Limited-English households (median tract %)",
-   "short": null,
+   "label": "Limited-English households (median tract) (%)",
+   "short": "Limited English %",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_uninsured_f35_74",
+    "med_pct_no_vehicle_hh",
+    "med_pct_no_hs_f25",
+    "med_pct_lep_hh"
+   ]
   },
   {
-   "id": "med_pctl_pct_lep_hh",
-   "label": "Limited-English households (median tract pctl)",
-   "short": null,
+   "id": "med_pctl_ur_pct_lep_hh",
+   "label": "Limited-English households (median tract) (pctl, urban/rural)",
+   "short": "Limited English pctl",
    "group": "Barriers",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "med_pctl_ur_pct_uninsured_f35_74",
+    "med_pctl_ur_pct_no_vehicle_hh",
+    "med_pctl_ur_pct_no_hs_f25",
+    "med_pctl_ur_pct_lep_hh"
+   ]
+  },
+  {
+   "id": "med_pctl_nat_pct_lep_hh",
+   "label": "Limited-English households (median tract) (pctl, national)",
+   "short": "Limited English pctl",
+   "group": "Barriers",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
+   "table": [
+    "med_pctl_nat_pct_uninsured_f35_74",
+    "med_pctl_nat_pct_no_vehicle_hh",
+    "med_pctl_nat_pct_no_hs_f25",
+    "med_pctl_nat_pct_lep_hh"
+   ]
   },
   {
    "id": "aair",
    "label": "County incidence rate",
-   "short": null,
+   "short": "County incidence rate",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "rate",
-   "description": "",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "pctl_aair",
-   "label": "County incidence rate (pctl)",
-   "short": null,
-   "group": "County burden",
-   "type": "numeric",
-   "fmt": "pctl",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
-  },
-  {
-   "id": "burden_aair",
-   "label": "County incidence rate tertile",
-   "short": null,
-   "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
    ]
   },
   {
    "id": "cases",
    "label": "County cases",
-   "short": null,
+   "short": "County cases",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count1",
-   "description": "",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
-  },
-  {
-   "id": "pctl_cases",
-   "label": "County cases (pctl)",
-   "short": null,
-   "group": "County burden",
-   "type": "numeric",
-   "fmt": "pctl",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
-  },
-  {
-   "id": "burden_cases",
-   "label": "County cases tertile",
-   "short": null,
-   "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
-   "description": "",
-   "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
    ]
   },
   {
    "id": "late_stage",
    "label": "County % late stage",
-   "short": null,
+   "short": "County % late stage",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
-   "description": "",
+   "description": "County-level context, the same for every tract in the county",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "aair",
+    "cases",
+    "late_stage"
+   ]
   },
   {
-   "id": "pctl_late_stage",
-   "label": "County % late stage (pctl)",
-   "short": null,
+   "id": "pctl_aair",
+   "label": "County incidence rate (pctl)",
+   "short": "Incidence pctl",
    "group": "County burden",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": true
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
+   ]
   },
   {
-   "id": "burden_late_stage",
-   "label": "County % late stage tertile",
-   "short": null,
+   "id": "pctl_cases",
+   "label": "County cases (pctl)",
+   "short": "Cases pctl",
    "group": "County burden",
-   "type": "ordinal",
-   "fmt": "ordinal",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false,
-   "levels": {
-    "values": [
-     1,
-     2,
-     3
-    ],
-    "labels": [
-     "Low",
-     "Moderate",
-     "High"
-    ]
-   },
-   "colors": [
-    "#FEE8C8",
-    "#FDBB84",
-    "#E34A33"
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
+   ]
+  },
+  {
+   "id": "pctl_late_stage",
+   "label": "County % late stage (pctl)",
+   "short": "% late stage pctl",
+   "group": "County burden",
+   "pages": [
+    "b"
+   ],
+   "type": "numeric",
+   "fmt": "pctl",
+   "description": "",
+   "colorscale": "YlOrRd",
+   "table": [
+    "pctl_aair",
+    "pctl_cases",
+    "pctl_late_stage"
    ]
   },
   {
    "id": "n_women_40_74",
    "label": "Women 40-74 (sum of tracts)",
-   "short": null,
+   "short": "Women 40-74",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
   },
   {
    "id": "n_women_40_49",
    "label": "Women 40-49 (sum of tracts)",
-   "short": null,
+   "short": "Women 40-49",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
   },
   {
    "id": "n_women_50_74",
    "label": "Women 50-74 (sum of tracts)",
-   "short": null,
+   "short": "Women 50-74",
    "group": "Population",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "count",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "n_women_40_74",
+    "n_women_40_49",
+    "n_women_50_74"
+   ]
+  },
+  {
+   "id": "rurality",
+   "label": "Urban / rural (county)",
+   "short": null,
+   "group": "Context",
+   "pages": [
+    "b"
+   ],
+   "type": "nominal",
+   "fmt": "text",
+   "description": "2023 Rural-Urban Continuum label of the county",
+   "colorscale": "YlOrRd",
+   "levels": [
+    "Urban",
+    "Rural"
+   ],
+   "colors": [
+    "#6C8EBF",
+    "#9BBF6C"
+   ]
   },
   {
    "id": "med_pct_nh_white",
-   "label": "Non-Hispanic White (median tract %)",
-   "short": null,
+   "label": "Non-Hispanic White (median tract) (%)",
+   "short": "Non-Hispanic White",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   },
   {
    "id": "med_pct_nh_black",
-   "label": "Non-Hispanic Black (median tract %)",
-   "short": null,
+   "label": "Non-Hispanic Black (median tract) (%)",
+   "short": "Non-Hispanic Black",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   },
   {
    "id": "med_pct_nh_aian",
-   "label": "Non-Hispanic AIAN (median tract %)",
-   "short": null,
+   "label": "Non-Hispanic AIAN (median tract) (%)",
+   "short": "Non-Hispanic AIAN",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   },
   {
    "id": "med_pct_nh_asian",
-   "label": "Non-Hispanic Asian (median tract %)",
-   "short": null,
+   "label": "Non-Hispanic Asian (median tract) (%)",
+   "short": "Non-Hispanic Asian",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   },
   {
    "id": "med_pct_hispanic",
-   "label": "Hispanic or Latino (median tract %)",
-   "short": null,
+   "label": "Hispanic or Latino (median tract) (%)",
+   "short": "Hispanic or Latino",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "Blues",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   },
   {
    "id": "med_ice_race_income",
    "label": "ICE race + income (median tract)",
-   "short": null,
+   "short": "ICE race+income",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "index",
-   "description": "",
-   "colorscale": "RdBu",
-   "reverse": false,
-   "profile": false
+   "description": "-1 to 1; higher = more privileged (context only)",
+   "colorscale": "RdBu"
   },
   {
    "id": "med_pct_poverty_f35_74",
-   "label": "Women 35-74 below poverty (median tract %)",
-   "short": null,
+   "label": "Women 35-74 below poverty (median tract) (%)",
+   "short": "Women 35-74 below poverty",
    "group": "Context",
+   "pages": [
+    "b"
+   ],
    "type": "numeric",
    "fmt": "pct",
    "description": "",
    "colorscale": "YlOrRd",
-   "reverse": false,
-   "profile": false
+   "table": [
+    "med_pct_nh_white",
+    "med_pct_nh_black",
+    "med_pct_nh_aian",
+    "med_pct_nh_asian",
+    "med_pct_hispanic"
+   ]
   }
  ]
 }
